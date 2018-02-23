@@ -14,10 +14,13 @@ module Data.OffHeapVector (
   OffHeapVector(),
   new,
   size,
+  isEmpty,
   read,
   write,
   unsafeRead,
-  unsafeWrite
+  unsafeWrite,
+  pushBack,
+  popBack
                           )
 where
 
@@ -53,6 +56,11 @@ data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORe
 
 size :: Storable a => OffHeapVector a -> IO Int
 size (OffHeapVector _ _ sizeRef) = readIORef sizeRef
+
+isEmpty :: Storable a => OffHeapVector a -> IO Bool
+isEmpty ov = do
+  sz <- size ov
+  return $ if (sz == 0) then True else False
   
 new :: Storable a => Int -> IO (OffHeapVector a)
 new initialCapacity = do
@@ -108,5 +116,10 @@ pushBack ov@(OffHeapVector vRef capRef sizeRef) e = do
   unsafeWrite ov size e
   modifyIORef' sizeRef (+1)
 
-  
-
+popBack :: Storable a => (OffHeapVector a) -> IO a
+popBack ov@(OffHeapVector _ _ sizeRef) = do
+  size <- readIORef sizeRef
+  when (size == 0) $ error $ "OffHeapVector is Empty"
+  e <- unsafeRead ov (size - 1)
+  modifyIORef' sizeRef (subtract 1)
+  return e

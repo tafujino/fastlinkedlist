@@ -15,11 +15,14 @@ dependencies:
   - base >= 4.7 && < 5
   - vector
   - primitive
+  - derive-storable-plugin
+  - derive-storable
+  - data-default
 
 library:
   exposed-modules:
      - Data.OffHeapVector
-#     - Data.RingBuffer
-#    - Data.ArrayLinkedList.SLList
+     - Data.FastStack
+     - Data.ArrayLinkedList.SLList
 #    - Data.ArrayLinkedList.DLList    
   source-dirs:      lib
