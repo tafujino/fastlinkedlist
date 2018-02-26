@@ -39,7 +39,6 @@ import Foreign.Storable.Generic
 import GHC.Generics
 import Data.Default
 import Data.IORef
-import Data.Monoid
 
 sentinelIx :: Int
 sentinelIx = 0 
@@ -141,7 +140,6 @@ delete itr = do
   let stack = getStack list
   FS.push stack thisIx
 
-
 foldlItrM :: (Default a, GStorable a) => (b -> Iterator a -> IO b) -> b -> Iterator a -> IO b
 foldlItrM f z itr = do
   mNextItr <- getNextItr itr
@@ -150,7 +148,6 @@ foldlItrM f z itr = do
     Just nextItr -> do
       z' <- f z itr
       foldlItrM f z' nextItr
-
 
 foldlM :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> SLList a -> IO b
 foldlM f z list = foldlItrM f' z (getBeginItr list)
