@@ -139,20 +139,20 @@ delete itr = do
   let stack = getStack list
   FS.push stack thisIx
 
-forM_ :: (Default a, GStorable a) => (a -> IO ()) -> SLList a -> IO ()
-forM_ f list = do
+forM_ :: (Default a, GStorable a) => SLList a -> (a -> IO ()) -> IO ()
+forM_ list f = do
   let f' itr = do
         value <- (***) itr
         f value
-  forItrM_ f' $ getBeginItr list
+  forItrM_ (getBeginItr list) f'
 
-forItrM_ :: (Default a, GStorable a) => (Iterator a -> IO ()) -> Iterator a -> IO ()
-forItrM_ f itr = do
+forItrM_ :: (Default a, GStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
+forItrM_ itr f = do
   isItrEnd <- isEnd itr
   if isItrEnd
     then return ()
     else do
       f itr
       nextItr <- getNextItr itr
-      forItrM_ f nextItr
+      forItrM_ nextItr f
 
