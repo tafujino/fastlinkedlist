@@ -13,7 +13,9 @@ module Data.ArrayLinkedList.SLList
     insert,
     delete,
     forM_,
-    forItrM_,
+    foldlM,
+    foldlM_,
+    mapM_,
     (***)
   )
 where
@@ -27,8 +29,9 @@ An array is expanded to the double size when it overflows.
 A dummy node is introduced for speed.
 -}
 
--- to implement foldlM, foldlM_
+-- implement erasure of the cells of the given range
 
+import Prelude hiding(mapM_)
 import qualified Data.OffHeapVector as OV
 import qualified Data.FastStack as FS
 import Foreign.Storable
@@ -138,19 +141,35 @@ delete itr = do
   let stack = getStack list
   FS.push stack thisIx
 
-forM_ :: (Default a, GStorable a) => SLList a -> (a -> IO ()) -> IO ()
-forM_ list f = forItrM_ (getBeginItr list) f'
-  where f' itr = do
-          mv <- (***) itr
-          case mv of
-            Nothing -> return ()
-            Just v  -> f v
 
-forItrM_ :: (Default a, GStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
-forItrM_ itr f = do
+foldlItrM :: (Default a, GStorable a) => (b -> Iterator a -> IO b) -> b -> Iterator a -> IO b
+foldlItrM f z itr = do
   mNextItr <- getNextItr itr
   case mNextItr of
-    Nothing   -> return () -- when this iterator points to a sentinel
+    Nothing      -> return z -- when this iterator points to the sentinel
     Just nextItr -> do
-      f itr
-      forItrM_ nextItr f
+      z' <- f z itr
+      foldlItrM f z' nextItr
+
+
+foldlM :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> SLList a -> IO b
+foldlM f z list = foldlItrM f' z (getBeginItr list)
+  where f' w itr = do
+          mv <- (***) itr
+          case mv of
+            Nothing -> return w
+            Just v  -> f w v
+
+foldlM_ :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> SLList a -> IO ()
+foldlM_ f z list = foldlM f z list >> return ()
+
+forItrM_ :: (Default a, GStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
+forItrM_ itr f = foldlItrM f' () itr
+  where f' w itr' = f itr' >> return w
+
+forM_ :: (Default a, GStorable a) => SLList a -> (a -> IO ()) -> IO ()
+forM_ list f = foldlM f' () list
+  where f' w v = f v >> return w
+
+mapM_ :: (Default a, GStorable a) => (a -> IO ()) -> SLList a -> IO ()
+mapM_ f list = forM_ list f
