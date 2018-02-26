@@ -139,8 +139,7 @@ delete itr = do
   FS.push stack thisIx
 
 forM_ :: (Default a, GStorable a) => SLList a -> (a -> IO ()) -> IO ()
-forM_ list f = do
-  forItrM_ (getBeginItr list) f'
+forM_ list f = forItrM_ (getBeginItr list) f'
   where f' itr = do
           mv <- (***) itr
           case mv of
