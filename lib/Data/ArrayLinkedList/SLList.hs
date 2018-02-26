@@ -67,35 +67,13 @@ new initialCapacity = do
   OV.pushBack array Cell { getNextIx = sentinelIx, getValue = def }
   return $ SLList array stack
 
-getBeginItr :: (Default a, GStorable a) => SLList a -> Iterator a
-getBeginItr list = Iterator { getList = list, getPrevIx = sentinelIx }
-
-(***) :: (Default a, GStorable a) => Iterator a -> IO a
-(***) itr = do
-  ix <- getThisIx itr
-  let list = getList itr
-      array = getArray list
-  thisCell <- OV.unsafeRead array ix
-  return $ getValue thisCell
-
 getThisIx :: (Default a, GStorable a) => Iterator a -> IO CellIndex
 getThisIx itr = do
   let list = getList itr
-      prevIx = getPrevIx itr
       array = getArray list
+      prevIx = getPrevIx itr
   prevCell <- OV.unsafeRead array prevIx
-  return $ getNextIx prevCell  
-  
-
-isEnd :: (Default a, GStorable a) => Iterator a -> IO Bool
-isEnd itr = do
-  thisIx <- getThisIx itr
-  return $ thisIx == sentinelIx
-
-getNextItr :: (Default a, GStorable a) => Iterator a -> IO (Iterator a)
-getNextItr itr = do
-  thisIx <- getThisIx itr
-  return $ Iterator { getList = getList itr, getPrevIx = thisIx }
+  return $ getNextIx prevCell
 
 -- |obtain an index of a cell, either from a stack or by allocating a new cell
 getNewIx :: (Default a, GStorable a) => SLList a -> IO CellIndex
@@ -111,7 +89,28 @@ getNewIx list = do
     else
       FS.pop stack
 
--- |insert an element to just before where pointed by the iterator
+(***) :: (Default a, GStorable a) => Iterator a -> IO (Maybe a)
+(***) itr = do
+  ix <- getThisIx itr
+  if ix == sentinelIx
+    then return Nothing
+    else do
+      let list = getList itr
+          array = getArray list
+      thisCell <- OV.unsafeRead array ix
+      return $ Just $ getValue thisCell
+
+getBeginItr :: (Default a, GStorable a) => SLList a -> Iterator a
+getBeginItr list = Iterator { getList = list, getPrevIx = sentinelIx }
+
+getNextItr :: (Default a, GStorable a) => Iterator a -> IO (Maybe (Iterator a))
+getNextItr itr = do
+  thisIx <- getThisIx itr
+  return $ if thisIx == sentinelIx
+    then Nothing
+    else Just $ Iterator { getList = getList itr, getPrevIx = thisIx }
+
+-- |insert an element to just before where the iterator points
 insert :: (Default a, GStorable a) => Iterator a -> a -> IO ()
 insert itr e = do
   let list = getList itr
@@ -141,18 +140,18 @@ delete itr = do
 
 forM_ :: (Default a, GStorable a) => SLList a -> (a -> IO ()) -> IO ()
 forM_ list f = do
-  let f' itr = do
-        value <- (***) itr
-        f value
   forItrM_ (getBeginItr list) f'
+  where f' itr = do
+          mv <- (***) itr
+          case mv of
+            Nothing -> return ()
+            Just v  -> f v
 
 forItrM_ :: (Default a, GStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
 forItrM_ itr f = do
-  isItrEnd <- isEnd itr
-  if isItrEnd
-    then return ()
-    else do
+  mNextItr <- getNextItr itr
+  case mNextItr of
+    Nothing   -> return () -- when this iterator points to a sentinel
+    Just nextItr -> do
       f itr
-      nextItr <- getNextItr itr
       forItrM_ nextItr f
-
