@@ -18,11 +18,17 @@ dependencies:
   - derive-storable-plugin
   - derive-storable
   - data-default
+  - doctest
+
+tests:
+  test:
+    main: Main.hs
+    source-dirs: test  
 
 library:
   exposed-modules:
      - Data.OffHeapVector
      - Data.FastStack
      - Data.ArrayLinkedList.SLList
-#    - Data.ArrayLinkedList.DLList    
-  source-dirs:      lib
+     - Data.ArrayLinkedList.DLList
+  source-dirs: lib

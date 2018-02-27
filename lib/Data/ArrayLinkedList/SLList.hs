@@ -16,6 +16,7 @@ module Data.ArrayLinkedList.SLList
     foldlM,
     foldlM_,
     mapM_,
+    toListM,
     (***)
   )
 where
@@ -53,8 +54,8 @@ data Cell a = Cell {
   } deriving (Show, Generic, GStorable, Default)
 
 data SLList a = SLList {
-  getArray   :: !(OV.OffHeapVector (Cell a)),
-  getStack   :: !(FS.FastStack CellIndex)
+  getArray :: !(OV.OffHeapVector (Cell a)),
+  getStack :: !(FS.FastStack CellIndex)
   }
 
 data Iterator a = Iterator {
@@ -170,3 +171,11 @@ forM_ list f = foldlM f' () list
 
 mapM_ :: (Default a, GStorable a) => (a -> IO ()) -> SLList a -> IO ()
 mapM_ f list = forM_ list f
+
+toListM :: (Default a, GStorable a) => SLList a -> IO [a]
+toListM list = do
+  let f xs x = return $ x:xs
+  l <- foldlM f [] list
+  return $ reverse l
+  
+
