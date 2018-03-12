@@ -9,15 +9,18 @@ module Data.ArrayLinkedList.SLList
     Iterator(),
     getBeginItr,
     getThisIx,
+    deref,
+    unsafeDeref,
     getNextItr,
+    unsafeGetNextItr,
     insert,
     delete,
+    unsafeDelete,
     forM_,
     foldlM,
     foldlM_,
     mapM_,
-    toListM,
-    (***)
+    toListM
   )
 where
 
@@ -42,7 +45,7 @@ import Data.Default
 import Data.IORef
 
 sentinelIx :: Int
-sentinelIx = 0 
+sentinelIx = 0
 
 type CellIndex = Int -- index 0 refers to a sentinel
 type CellSize  = Int
@@ -63,6 +66,44 @@ data Iterator a = Iterator {
   getPrevIx :: !CellIndex
   }
 
+-- |
+-- >>> list <- Data.ArrayLinkedList.SLList.new 10 :: IO (Data.ArrayLinkedList.SLList.SLList Int)
+-- >>> i0 = getBeginItr list
+-- >>> deref i0
+-- Nothing
+-- >>> mi1 <- getNextItr i0
+-- >>> maybe Nothing (\_ -> Just "Iterator") mi1
+-- Nothing
+-- >>> popFront list
+-- Nothing
+-- >>> pushFront list 1
+-- >>> pushFront list 2
+-- >>> pushFront list 3
+-- >>> toListM list
+-- [3,2,1]
+-- >>> forM_ list print
+-- 3
+-- 2
+-- 1
+-- >>> foldlM (\x y -> return $ x + y) 0 list
+-- 6
+-- >>> i2 = getBeginItr list
+-- >>> Just i3 <- getNextItr i2
+-- >>> insert i3 100
+-- >>> toListM list
+-- [3,100,2,1]
+-- >>> Just i4 <- getNextItr i3
+-- >>> Just i5 <- delete i4
+-- >>> toListM list
+-- [3,100,1]
+-- >>> pushFront list 200
+-- >>> toListM list
+-- [200,3,100,1]
+-- >>> popFront list
+-- Just 200
+-- >>> toListM list
+-- [3,100,1]
+
 new :: (Default a, GStorable a) => CellSize -> IO (SLList a)
 new initialCapacity = do
   array <- OV.new (initialCapacity + 1) -- one cell is additionaly reserved for a sentinel
@@ -71,12 +112,7 @@ new initialCapacity = do
   return $ SLList array stack
 
 getThisIx :: (Default a, GStorable a) => Iterator a -> IO CellIndex
-getThisIx itr = do
-  let list = getList itr
-      array = getArray list
-      prevIx = getPrevIx itr
-  prevCell <- OV.unsafeRead array prevIx
-  return $ getNextIx prevCell
+getThisIx itr = OV.unsafeRead (getArray (getList itr)) (getPrevIx itr) >>= return . getNextIx
 
 -- |obtain an index of a cell, either from a stack or by allocating a new cell
 getNewIx :: (Default a, GStorable a) => SLList a -> IO CellIndex
@@ -92,16 +128,24 @@ getNewIx list = do
     else
       FS.pop stack
 
-(***) :: (Default a, GStorable a) => Iterator a -> IO (Maybe a)
-(***) itr = do
+-- |(private) obtain the cell the iterator points
+itrToCell :: (Default a, GStorable a) => Iterator a -> IO (Cell a)
+itrToCell itr = do
+  thisIx <- getThisIx itr
+  OV.unsafeRead (getArray (getList itr)) thisIx
+
+deref :: (Default a, GStorable a) => Iterator a -> IO (Maybe a)
+deref itr = do
   ix <- getThisIx itr
   if ix == sentinelIx
     then return Nothing
-    else do
-      let list = getList itr
-          array = getArray list
-      thisCell <- OV.unsafeRead array ix
-      return $ Just $ getValue thisCell
+    else OV.unsafeRead (getArray (getList itr)) ix >>= return . Just . getValue
+
+unsafeDeref :: (Default a, GStorable a) => Iterator a -> IO a
+unsafeDeref itr = do
+  ix <- getThisIx itr
+  cell <- OV.unsafeRead (getArray (getList itr)) ix
+  return $ getValue cell
 
 getBeginItr :: (Default a, GStorable a) => SLList a -> Iterator a
 getBeginItr list = Iterator { getList = list, getPrevIx = sentinelIx }
@@ -111,7 +155,12 @@ getNextItr itr = do
   thisIx <- getThisIx itr
   return $ if thisIx == sentinelIx
     then Nothing
-    else Just $ Iterator { getList = getList itr, getPrevIx = thisIx }
+    else Just itr { getPrevIx = thisIx }
+
+unsafeGetNextItr :: (Default a, GStorable a) => Iterator a -> IO (Iterator a)
+unsafeGetNextItr itr = do
+  thisIx <- getThisIx itr
+  return itr { getPrevIx = thisIx }
 
 -- |insert an element to just before where the iterator points
 insert :: (Default a, GStorable a) => Iterator a -> a -> IO ()
@@ -127,8 +176,25 @@ insert itr e = do
   OV.unsafeWrite array newIx Cell { getNextIx = rightIx, getValue = e }
 
 -- |delete a cell from the list and push the cell index to the stack
-delete :: (Default a, GStorable a) => Iterator a -> IO ()
+delete :: (Default a, GStorable a) => Iterator a -> IO (Maybe (Iterator a))
 delete itr = do
+  let list = getList itr
+      leftIx = getPrevIx itr
+      array = getArray list
+  leftCell <- OV.unsafeRead array leftIx
+  let thisIx = getNextIx leftCell
+  if thisIx == sentinelIx
+    then return Nothing
+    else do
+      thisCell <- OV.unsafeRead array thisIx
+      let rightIx = getNextIx thisCell
+      -- for the left cell, updating by the same value is a waste
+      OV.unsafeWrite array leftIx $ leftCell { getNextIx = rightIx }
+      FS.push (getStack list) thisIx
+      return $ Just itr { getPrevIx = leftIx }
+
+unsafeDelete :: (Default a, GStorable a) => Iterator a -> IO (Iterator a)
+unsafeDelete itr = do
   let list = getList itr
       leftIx = getPrevIx itr
       array = getArray list
@@ -138,25 +204,39 @@ delete itr = do
   let rightIx = getNextIx thisCell
   -- for the left cell, updating by the same value is a waste
   OV.unsafeWrite array leftIx $ leftCell { getNextIx = rightIx }
-  let stack = getStack list
-  FS.push stack thisIx
+  FS.push (getStack list) thisIx
+  return itr { getPrevIx = leftIx }
+
+pushFront :: (Default a, GStorable a) => SLList a -> a -> IO ()
+pushFront list e = insert (getBeginItr list) e
+
+unsafePopFront :: (Default a, GStorable a) => SLList a -> IO a
+unsafePopFront list = do
+  let itr = getBeginItr list
+  e <- unsafeDeref itr
+  unsafeDelete itr
+  return e
+
+popFront :: (Default a, GStorable a) => SLList a -> IO (Maybe a)
+popFront list = do
+  let itr = getBeginItr list
+  me <- deref itr
+  case me of
+    Nothing -> return Nothing
+    Just e  -> do
+      unsafeDelete itr
+      return $ Just e
 
 foldlItrM :: (Default a, GStorable a) => (b -> Iterator a -> IO b) -> b -> Iterator a -> IO b
 foldlItrM f z itr = do
-  mNextItr <- getNextItr itr
-  case mNextItr of
-    Nothing      -> return z -- when this iterator points to the sentinel
-    Just nextItr -> do
-      z' <- f z itr
-      foldlItrM f z' nextItr
+  thisIx <- getThisIx itr
+  if thisIx == sentinelIx
+    then return z
+    else f z itr >>= \z' -> foldlItrM f z' itr { getPrevIx = thisIx }
 
 foldlM :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> SLList a -> IO b
 foldlM f z list = foldlItrM f' z (getBeginItr list)
-  where f' w itr = do
-          mv <- (***) itr
-          case mv of
-            Nothing -> return w
-            Just v  -> f w v
+  where f' w itr = unsafeDeref itr >>= f w
 
 foldlM_ :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> SLList a -> IO ()
 foldlM_ f z list = foldlM f z list >> return ()
@@ -177,5 +257,3 @@ toListM list = do
   let f xs x = return $ x:xs
   l <- foldlM f [] list
   return $ reverse l
-  
-
