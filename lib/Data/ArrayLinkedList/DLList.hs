@@ -228,20 +228,20 @@ rDeref itr = do
       return $ Just $ getValue cell
 
 unsafeDeref :: (Default a, GStorable a) => Iterator a -> IO a
-unsafeDeref itr = itrToCell itr >>= return . getValue
+unsafeDeref itr = getValue <$> itrToCell itr
 
 unsafeRDeref :: (Default a, GStorable a) => RIterator a -> IO a
-unsafeRDeref itr = rItrToCell itr >>= return . getValue
+unsafeRDeref itr = getValue <$> rItrToCell itr
 
 getBeginItr :: (Default a, GStorable a) => DLList a -> IO (Iterator a)
 getBeginItr list = do
   sentinelCell <- OV.unsafeRead (getArray list) sentinelIx
-  return $ Iterator { getList = list, getThisIx = getNextIx sentinelCell }
+  return Iterator { getList = list, getThisIx = getNextIx sentinelCell }
 
 getRBeginItr :: (Default a, GStorable a) => DLList a -> IO (RIterator a)
 getRBeginItr list = do
   sentinelCell <- OV.unsafeRead (getArray list) sentinelIx
-  return $ RIterator { rGetList = list, rGetThisIx = getPrevIx sentinelCell }
+  return RIterator { rGetList = list, rGetThisIx = getPrevIx sentinelCell }
 
 getPrevItr :: (Default a, GStorable a) => Iterator a -> IO (Maybe (Iterator a))
 getPrevItr itr = do
@@ -252,7 +252,7 @@ getPrevItr itr = do
     else Just $ itr { getThisIx = prevIx }
 
 getNextItr :: (Default a, GStorable a) => Iterator a -> IO (Maybe (Iterator a))
-getNextItr itr = do
+getNextItr itr =
   if getThisIx itr == sentinelIx
     then return Nothing
     else do
@@ -278,7 +278,7 @@ rGetPrevItr itr = do
     else Just $ itr { rGetThisIx = nextIx }
 
 rGetNextItr :: (Default a, GStorable a) => RIterator a -> IO (Maybe (RIterator a))
-rGetNextItr itr = do
+rGetNextItr itr =
   if rGetThisIx itr == sentinelIx
     then return Nothing
     else do
@@ -361,10 +361,10 @@ unsafeRDelete itr = do
   return nextItr
 
 pushFront :: (Default a, GStorable a) => DLList a -> a -> IO ()
-pushFront list e = getBeginItr list >>= (\itr -> insert itr e)
+pushFront list e = getBeginItr list >>= (`insert` e)
 
 pushBack :: (Default a, GStorable a) => DLList a -> a -> IO ()
-pushBack list e = getRBeginItr list >>= (\itr -> rInsert itr e)
+pushBack list e = getRBeginItr list >>= (`rInsert` e)
 
 popFront :: (Default a, GStorable a) => DLList a -> IO (Maybe a)
 popFront list = do
@@ -397,7 +397,7 @@ unsafePopBack list = do
   return v
 
 foldlItrM :: (Default a, GStorable a) => (b -> Iterator a -> IO b) -> b -> Iterator a -> IO b
-foldlItrM f z itr = do
+foldlItrM f z itr =
   if getThisIx itr == sentinelIx
     then return z
     else do
@@ -410,7 +410,7 @@ foldlM f z list = getBeginItr list >>= foldlItrM f' z
   where f' w itr = unsafeDeref itr >>= f w
 
 foldrItrM :: (Default a, GStorable a) => (RIterator a -> b -> IO b) -> b -> RIterator a -> IO b
-foldrItrM f z itr = do
+foldrItrM f z itr =
   if rGetThisIx itr == sentinelIx
     then return z
     else do
@@ -423,10 +423,10 @@ foldrM f z list = getRBeginItr list >>= foldrItrM f' z
   where f' itr w = unsafeRDeref itr >>= \v -> f v w
 
 foldlM_ :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> DLList a -> IO ()
-foldlM_ f z list = foldlM f z list >> return ()
+foldlM_ f z list = void $ foldlM f z list
 
 foldrM_ :: (Default a, GStorable a) => (a -> b -> IO b) -> b -> DLList a -> IO ()
-foldrM_ f z list = foldrM f z list >> return ()
+foldrM_ f z list = void $ foldrM f z list
 
 forItrM_ :: (Default a, GStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
 forItrM_ itr f = foldlItrM f' () itr
@@ -440,4 +440,4 @@ mapM_ :: (Default a, GStorable a) => (a -> IO ()) -> DLList a -> IO ()
 mapM_ f list = forM_ list f
 
 toListM :: (Default a, GStorable a) => DLList a -> IO [a]
-toListM list = foldrM (\x xs -> return $ x:xs) [] list
+toListM = foldrM ((return .) . (:)) []
