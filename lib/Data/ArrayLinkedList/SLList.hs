@@ -43,6 +43,7 @@ import Foreign.Storable.Generic
 import GHC.Generics
 import Data.Default
 import Data.IORef
+import qualified Data.DList as DL
 
 sentinelIx :: Int
 sentinelIx = 0
@@ -253,7 +254,4 @@ mapM_ :: (Default a, GStorable a) => (a -> IO ()) -> SLList a -> IO ()
 mapM_ f list = forM_ list f
 
 toListM :: (Default a, GStorable a) => SLList a -> IO [a]
-toListM list = do
-  let f xs x = return $ x:xs
-  l <- foldlM f [] list
-  return $ reverse l
+toListM list = foldlM ((return .) . DL.snoc) DL.empty list >>= return . DL.toList

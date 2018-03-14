@@ -19,6 +19,7 @@ dependencies:
   - derive-storable
   - data-default
   - doctest
+  - dlist
 
 tests:
   test:
