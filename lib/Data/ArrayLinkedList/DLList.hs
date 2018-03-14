@@ -136,21 +136,11 @@ data RIterator a = RIterator {
 -- >>> deref i0
 -- Nothing
 -- >>> mi1 <- getNextItr i0
--- >>> :{
--- >>> case mi1 of
--- >>>   Nothing -> "Nothing"
--- >>>   Just _  -> "Just an iterator"
--- >>> :}
--- "Nothing"
---
+-- >>> maybe Nothing (\_ -> Just "Iterator") mi1
+-- Nothing
 -- >>> mi2 <- getPrevItr i0
--- >>> :{
--- >>> case mi2 of
--- >>>   Nothing -> "Nothing"
--- >>>   Just _  -> "Just an iterator"
--- >>> :}
--- "Nothing"
---
+-- >>> maybe Nothing (\_ -> Just "Iterator") mi2
+-- Nothing
 -- >>> popFront list
 -- Nothing
 -- >>> popBack list
@@ -166,8 +156,8 @@ data RIterator a = RIterator {
 -- >>> pushBack list 0
 -- >>> toListM list
 -- [3,2,1,0]
--- >>> popFront list
--- Just 3
+-- >>> unsafePopFront list
+-- 3
 -- >>> toListM list
 -- [2,1,0]
 -- >>> i0 <- getBeginItr list
