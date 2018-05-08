@@ -50,7 +50,7 @@ import Data.IORef
 
 type ArrayIndex = Int
 
--- | 
+-- |
 data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORef Int)
 -- OffHeapvector ptr capacity size
 
@@ -61,7 +61,7 @@ isEmpty :: Storable a => OffHeapVector a -> IO Bool
 isEmpty ov = do
   sz <- size ov
   return $ if (sz == 0) then True else False
-  
+
 new :: Storable a => Int -> IO (OffHeapVector a)
 new initialCapacity = do
   v <- mallocForeignPtrArray initialCapacity
@@ -70,7 +70,7 @@ new initialCapacity = do
   sizeRef <- newIORef 0
   return $ OffHeapVector vRef capRef sizeRef
 
-expand :: Storable a => (OffHeapVector a) -> Int -> IO ()
+expand :: Storable a => OffHeapVector a -> Int -> IO ()
 expand (OffHeapVector vRef capRef sizeRef) additionalCapacity = do
   oldCapacity <- readIORef capRef
   let newCapacity = additionalCapacity + oldCapacity
@@ -83,31 +83,31 @@ expand (OffHeapVector vRef capRef sizeRef) additionalCapacity = do
   writeIORef vRef nv
   writeIORef capRef newCapacity
 
-unsafeRead :: Storable a => (OffHeapVector a) -> ArrayIndex -> IO a
+unsafeRead :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
 unsafeRead (OffHeapVector vRef _ _) ix = do
   v <- readIORef vRef
   withForeignPtr v $ \p -> peekElemOff p ix
 
-read :: Storable a => (OffHeapVector a) -> ArrayIndex -> IO a
+read :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
 read ov@(OffHeapVector vRef _ sizeRef) ix = do
   v <- readIORef vRef
   size <- readIORef sizeRef
   when (ix < 0 || (size <= ix)) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
   unsafeRead ov ix
 
-unsafeWrite :: Storable a => (OffHeapVector a) -> ArrayIndex -> a -> IO ()
+unsafeWrite :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
 unsafeWrite (OffHeapVector vRef _ _) ix e = do
   v <- readIORef vRef
   withForeignPtr v $ \p -> pokeElemOff p ix e
 
-write :: Storable a => (OffHeapVector a) -> ArrayIndex -> a -> IO ()
+write :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
 write ov@(OffHeapVector vRef _ sizeRef) ix e = do
   v <- readIORef vRef
   size <- readIORef sizeRef
   when (ix < 0 || (size <= ix)) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
   unsafeWrite ov ix e
 
-pushBack :: Storable a => (OffHeapVector a) -> a -> IO ()
+pushBack :: Storable a => OffHeapVector a -> a -> IO ()
 pushBack ov@(OffHeapVector vRef capRef sizeRef) e = do
   v <- readIORef vRef
   size <- readIORef sizeRef
@@ -116,10 +116,10 @@ pushBack ov@(OffHeapVector vRef capRef sizeRef) e = do
   unsafeWrite ov size e
   modifyIORef' sizeRef (+1)
 
-popBack :: Storable a => (OffHeapVector a) -> IO a
+popBack :: Storable a => OffHeapVector a -> IO a
 popBack ov@(OffHeapVector _ _ sizeRef) = do
   size <- readIORef sizeRef
-  when (size == 0) $ error $ "OffHeapVector is Empty"
+  when (size == 0) $ error "OffHeapVector is Empty"
   e <- unsafeRead ov (size - 1)
   modifyIORef' sizeRef (subtract 1)
   return e
