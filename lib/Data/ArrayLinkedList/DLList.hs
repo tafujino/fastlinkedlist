@@ -300,7 +300,7 @@ updateValue itr e = do
   OV.unsafeWrite array ix cell { getValue = e }
 
 -- |(private) insert an element between two indices, which should be adjacent
-insertByIx :: (Default a, GStorable a) => DLList a -> CellIndex -> CellIndex -> a -> IO ()
+insertByIx :: (Default a, GStorable a) => DLList a -> CellIndex -> CellIndex -> a -> IO CellIndex
 insertByIx list leftIx rightIx e = do
   let array = getArray list
   newIx <- getNewIx list
@@ -309,18 +309,21 @@ insertByIx list leftIx rightIx e = do
   rightCell <- OV.unsafeRead array rightIx
   OV.unsafeWrite array rightIx $ rightCell { getPrevIx = newIx }
   OV.unsafeWrite array newIx Cell { getPrevIx = leftIx, getNextIx = rightIx, getValue = e }
+  return newIx
 
 -- |insert an element to just before where the iterator points (the left cell of the pointed cell)
-insert :: (Default a, GStorable a) => Iterator a -> a -> IO ()
+insert :: (Default a, GStorable a) => Iterator a -> a -> IO (Iterator a)
 insert itr e = do
   cell <- itrToCell itr
-  insertByIx (getList itr) (getPrevIx cell) (getThisIx itr) e
+  ix <- insertByIx (getList itr) (getPrevIx cell) (getThisIx itr) e
+  return itr { getThisIx = ix }
 
 -- |insert an element to just before where the reverse iterator points (the right cell of the pointed cell)
-rInsert :: (Default a, GStorable a) => RIterator a -> a -> IO ()
+rInsert :: (Default a, GStorable a) => RIterator a -> a -> IO (RIterator a)
 rInsert itr e = do
   cell <- rItrToCell itr
-  insertByIx (rGetList itr) (rGetThisIx itr) (getNextIx cell) e
+  ix <- insertByIx (rGetList itr) (rGetThisIx itr) (getNextIx cell) e
+  return itr { rGetThisIx = ix }
 
 -- |(private) delete a cell of the given index from the list and push the cell index to the stack
 deleteByIx :: (Default a, GStorable a) => DLList a -> CellIndex -> IO ()
@@ -366,10 +369,10 @@ unsafeRDelete itr = do
   return nextItr
 
 pushFront :: (Default a, GStorable a) => DLList a -> a -> IO ()
-pushFront list e = flip insert e =<< getBeginItr list 
+pushFront list e = void $ (`insert` e) =<< getBeginItr list
 
 pushBack :: (Default a, GStorable a) => DLList a -> a -> IO ()
-pushBack list e = flip rInsert e =<< getRBeginItr list
+pushBack list e = void $ (`rInsert` e) =<< getRBeginItr list
 
 popFront :: (Default a, GStorable a) => DLList a -> IO (Maybe a)
 popFront list = runMaybeT $ do
