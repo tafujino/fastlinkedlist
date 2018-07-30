@@ -14,6 +14,8 @@ module Data.ArrayLinkedList.DLList
     unsafeRDeref,
     getBeginItr,
     getRBeginItr,
+    getEndItr,
+    getREndItr,
     getNextItr,
     rGetNextItr,
     getPrevItr,
@@ -45,6 +47,9 @@ module Data.ArrayLinkedList.DLList
     forIO_,
     mapIO_,
     toList,
+    sentinelIx,
+    CellIndex,
+    CellSize
   )
 where
 
@@ -85,17 +90,17 @@ data Cell a = Cell {
 data DLList a = DLList {
   getArray :: !(OV.OffHeapVector (Cell a)),
   getStack :: !(FS.FastStack CellIndex)
-  }
+  } deriving Eq
 
 data Iterator a = Iterator {
   getList   :: !(DLList a),
   getThisIx :: !CellIndex
-  }
+  } deriving Eq
 
 data RIterator a = RIterator {
   rGetList   :: !(DLList a),
   rGetThisIx :: !CellIndex
-  }
+  } deriving Eq
 
 -- |
 -- >>> list <- Data.ArrayLinkedList.DLList.new 10 :: IO (Data.ArrayLinkedList.DLList.DLList Int)
@@ -239,6 +244,12 @@ getRBeginItr :: (Default a, GStorable a) => DLList a -> IO (RIterator a)
 getRBeginItr list = do
   sentinelCell <- OV.unsafeRead (getArray list) sentinelIx
   return RIterator { rGetList = list, rGetThisIx = getPrevIx sentinelCell }
+
+getEndItr :: (Default a, GStorable a) => DLList a -> Iterator a
+getEndItr list = Iterator { getList = list, getThisIx = sentinelIx }
+
+getREndItr :: (Default a, GStorable a) => DLList a -> RIterator a
+getREndItr list = RIterator { rGetList = list, rGetThisIx = sentinelIx }
 
 getPrevItr :: (Default a, GStorable a) => Iterator a -> IO (Maybe (Iterator a))
 getPrevItr itr = runMaybeT $ do

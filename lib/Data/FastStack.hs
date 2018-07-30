@@ -1,3 +1,4 @@
+
 {-# LANGUAGE BangPatterns #-}
 
 {-
@@ -52,7 +53,7 @@ import Data.IORef
           topIndex : an index integer is stored if a new cell is deallocated.
 -}
 
-data FastStack a = FastStack (OV.OffHeapVector a)
+data FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
 
 new :: Storable a => Int -> IO (FastStack a)
 new initialCapacity = do

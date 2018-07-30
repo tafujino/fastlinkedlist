@@ -51,7 +51,7 @@ import Data.IORef
 type ArrayIndex = Int
 
 -- |
-data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORef Int)
+data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORef Int) deriving Eq
 -- OffHeapvector ptr capacity size
 
 size :: Storable a => OffHeapVector a -> IO Int
