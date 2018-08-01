@@ -417,9 +417,10 @@ foldlItr :: (Default a, GStorable a) => (b -> Iterator a -> IO b) -> b -> Iterat
 foldlItr f z itr
   | getThisIx itr == sentinelIx = return z
   | otherwise = do
-      z' <- f z itr
-      nextItr <- unsafeGetNextItr itr
+      z' <- f z itr  -- (1)
+      nextItr <- unsafeGetNextItr itr  -- (2)
       foldlItr f z' nextItr
+-- if you want to delete the cell in f, (1) and (2) should be exchanged
 
 foldlIO :: (Default a, GStorable a) => (b -> a -> IO b) -> b -> DLList a -> IO b
 foldlIO f z = foldlItr f' z <=< getBeginItr
