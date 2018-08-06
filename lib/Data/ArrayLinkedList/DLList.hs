@@ -24,8 +24,10 @@ module Data.ArrayLinkedList.DLList
     unsafeRGetNextItr,
     unsafeGetPrevItr,
     unsafeRGetPrevItr,
-    unsafeUpdateValue,
-    updateValue,
+    unsafeWrite,
+    write,
+    unsafeModify,
+    modify,
     insert,
     rInsert,
     delete,
@@ -295,20 +297,30 @@ unsafeRGetNextItr itr = do
   cell <- rItrToCell itr
   return itr { rGetThisIx = getPrevIx cell }
 
-unsafeUpdateValue :: (Default a, GStorable a) => Iterator a -> a -> IO ()
-unsafeUpdateValue itr e = do
+unsafeWrite :: (Default a, GStorable a) => Iterator a -> a -> IO ()
+unsafeWrite itr e = do
   let array = getArray $ getList itr
       ix = getThisIx itr
   cell <- OV.unsafeRead array ix
   OV.unsafeWrite array ix cell { getValue = e }
 
-updateValue :: (Default a, GStorable a) => Iterator a -> a -> IO ()
-updateValue itr e = do
+write :: (Default a, GStorable a) => Iterator a -> a -> IO ()
+write itr e = do
   let array = getArray $ getList itr
       ix = getThisIx itr
   when (ix /= sentinelIx) $ error "cannot update the value of sentinel cell"
   cell <- OV.unsafeRead array ix
   OV.unsafeWrite array ix cell { getValue = e }
+
+unsafeModify :: (Default a, GStorable a) => Iterator a -> (a -> a) -> IO ()
+unsafeModify itr f = unsafeWrite itr =<< f <$> unsafeDeref itr
+
+modify :: (Default a, GStorable a) => Iterator a -> (a -> a) -> IO ()
+modify itr f = do
+  let array = getArray $ getList itr
+      ix = getThisIx itr
+  when (ix /= sentinelIx) $ error "cannot update the value of sentinel cell"
+  unsafeModify itr f
 
 -- |(private) insert an element between two indices, which should be adjacent
 insertByIx :: (Default a, GStorable a) => DLList a -> CellIndex -> CellIndex -> a -> IO CellIndex
