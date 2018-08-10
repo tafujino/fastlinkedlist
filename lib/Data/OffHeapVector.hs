@@ -1,4 +1,3 @@
-
 {-
 Module : Data.OffHeapVector
 Description : A very fast off-heap vector using foreign memory.
@@ -10,6 +9,7 @@ foreign memory. The features are
 - very fast (but can hold only unboxed types)
 
 -}
+
 module Data.OffHeapVector (
   OffHeapVector(),
   new,
@@ -21,7 +21,7 @@ module Data.OffHeapVector (
   unsafeWrite,
   pushBack,
   popBack
-                          )
+  )
 where
 
 import Prelude hiding(read)
@@ -56,6 +56,26 @@ data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORe
 
 size :: Storable a => OffHeapVector a -> IO Int
 size (OffHeapVector _ _ sizeRef) = readIORef sizeRef
+
+
+-- |
+-- >>> v <- new 10 :: IO (OffHeapVector Char)
+-- >>> isEmpty v
+-- True
+-- >>> pushBack v 'a'
+-- >>> isEmpty v
+-- False
+-- >>> pushBack v 'b'
+-- >>> pushBack v 'c'
+-- >>> read v 0
+-- 'a'
+-- >>> read v 2
+-- 'c'
+-- >>> write v 1 'd'
+-- >>> read v 1
+-- 'd'
+
+
 
 isEmpty :: Storable a => OffHeapVector a -> IO Bool
 isEmpty ov = do
