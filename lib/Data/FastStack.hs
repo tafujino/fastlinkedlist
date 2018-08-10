@@ -53,21 +53,21 @@ import Data.IORef
           topIndex : an index integer is stored if a new cell is deallocated.
 -}
 
-data FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
+newtype FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
 
 new :: Storable a => Int -> IO (FastStack a)
 new initialCapacity = do
   ov <- OV.new initialCapacity
   return $ FastStack ov
 
-size :: Storable a => (FastStack a) -> IO Int
+size :: Storable a => FastStack a -> IO Int
 size (FastStack ov) = OV.size ov
 
-isEmpty :: Storable a => (FastStack a) -> IO Bool
+isEmpty :: Storable a => FastStack a -> IO Bool
 isEmpty (FastStack ov) = OV.isEmpty ov
 
 push :: Storable a => FastStack a -> a -> IO ()
-push (FastStack ov) e = OV.pushBack ov e
+push (FastStack ov) = OV.pushBack ov
 
 pop :: Storable a => FastStack a -> IO a
 pop (FastStack ov) = OV.popBack ov

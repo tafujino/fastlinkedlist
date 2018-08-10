@@ -31,6 +31,7 @@ import Foreign.Storable
 import qualified Data.Vector.Storable.Mutable as V
 import Text.Printf (printf)
 import Control.Monad
+import Control.Monad.ST
 import Data.IORef
 
 {-
@@ -51,12 +52,14 @@ import Data.IORef
 type ArrayIndex = Int
 
 -- |
-data OffHeapVector a = OffHeapVector !(IORef (ForeignPtr a)) !(IORef Int) !(IORef Int) deriving Eq
--- OffHeapvector ptr capacity size
+data OffHeapVector a = OffHeapVector {
+  vRef    :: !(IORef (ForeignPtr a)),
+  capRef  :: !(IORef Int),
+  sizeRef :: !(IORef Int)
+  } deriving Eq
 
 size :: Storable a => OffHeapVector a -> IO Int
-size (OffHeapVector _ _ sizeRef) = readIORef sizeRef
-
+size v = readIORef $ sizeRef v
 
 -- |
 -- >>> v <- new 10 :: IO (OffHeapVector Char)
@@ -76,11 +79,10 @@ size (OffHeapVector _ _ sizeRef) = readIORef sizeRef
 -- 'd'
 
 
-
 isEmpty :: Storable a => OffHeapVector a -> IO Bool
 isEmpty ov = do
   sz <- size ov
-  return $ if (sz == 0) then True else False
+  return $ sz == 0
 
 new :: Storable a => Int -> IO (OffHeapVector a)
 new initialCapacity = do
@@ -103,6 +105,12 @@ expand (OffHeapVector vRef capRef sizeRef) additionalCapacity = do
   writeIORef vRef nv
   writeIORef capRef newCapacity
 
+checkBoundary :: Storable a => OffHeapVector a -> ArrayIndex -> IO ()
+checkBoundary ov@(OffHeapVector vRef _ sizeRef) ix = do
+  v <- readIORef vRef
+  size <- readIORef sizeRef
+  when (ix < 0 || size <= ix) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
+
 unsafeRead :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
 unsafeRead (OffHeapVector vRef _ _) ix = do
   v <- readIORef vRef
@@ -110,9 +118,7 @@ unsafeRead (OffHeapVector vRef _ _) ix = do
 
 read :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
 read ov@(OffHeapVector vRef _ sizeRef) ix = do
-  v <- readIORef vRef
-  size <- readIORef sizeRef
-  when (ix < 0 || (size <= ix)) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
+  checkBoundary ov ix
   unsafeRead ov ix
 
 unsafeWrite :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
@@ -122,9 +128,7 @@ unsafeWrite (OffHeapVector vRef _ _) ix e = do
 
 write :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
 write ov@(OffHeapVector vRef _ sizeRef) ix e = do
-  v <- readIORef vRef
-  size <- readIORef sizeRef
-  when (ix < 0 || (size <= ix)) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
+  checkBoundary ov ix
   unsafeWrite ov ix e
 
 pushBack :: Storable a => OffHeapVector a -> a -> IO ()
@@ -140,6 +144,6 @@ popBack :: Storable a => OffHeapVector a -> IO a
 popBack ov@(OffHeapVector _ _ sizeRef) = do
   size <- readIORef sizeRef
   when (size == 0) $ error "OffHeapVector is Empty"
-  e <- unsafeRead ov (size - 1)
+  e <- unsafeRead ov $ size - 1
   modifyIORef' sizeRef (subtract 1)
   return e
