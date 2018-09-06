@@ -40,9 +40,11 @@ module Data.ArrayLinkedList.DLList
     popBack,
     unsafePopFront,
     unsafePopBack,
+    foldlItr,
     foldl,
     foldlIO,
     foldlIO_,
+    foldrItr,
     foldr,
     foldrIO,
     foldrIO_,
@@ -197,7 +199,7 @@ new initialCapacity = do
                            getValue = def }
   return $ DLList array stack
 
--- |obtain an index of a cell, either from a stack or by allocating a new cell
+-- | obtain an index of a cell, either from a stack or by allocating a new cell
 getNewIx :: (Default a, GStorable a) => DLList a -> IO CellIndex
 getNewIx list = do
   let array = getArray list
