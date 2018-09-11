@@ -15,8 +15,7 @@ dependencies:
   - base >= 4.7 && < 5
   - vector
   - primitive
-  - derive-storable-plugin
-  - derive-storable
+  - c-storable-deriving
   - data-default
   - doctest
   - dlist

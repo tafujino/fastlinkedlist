@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6bdf1c5cbccd9a559f1b5548a6e1a41077f745065759e1ae2d34e43bd6b4fbf7
+-- hash: dc6d8fd615c04bd14a1957806232a748073d8876c09e5866b0fe1edb97cee4ff
 
 name:           fastlinkedlist
 version:        0.1.0.0
@@ -30,9 +30,8 @@ library
       lib
   build-depends:
       base >=4.7 && <5
+    , c-storable-deriving
     , data-default
-    , derive-storable
-    , derive-storable-plugin
     , dlist
     , doctest
     , primitive
@@ -49,9 +48,8 @@ test-suite test
       test
   build-depends:
       base >=4.7 && <5
+    , c-storable-deriving
     , data-default
-    , derive-storable
-    , derive-storable-plugin
     , dlist
     , doctest
     , primitive
