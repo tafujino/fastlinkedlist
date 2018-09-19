@@ -13,26 +13,25 @@ foreign memory. The features are
 module Data.OffHeapVector (
   OffHeapVector(),
   new,
-  size,
-  isEmpty,
+  null,
+  length,
   read,
   write,
   unsafeRead,
   unsafeWrite,
   pushBack,
-  popBack
+  popBack,
+  unsafePopBack,
   )
 where
 
-import Prelude hiding(read)
-import Foreign.ForeignPtr
-import Foreign.Ptr
-import Foreign.Storable
-import qualified Data.Vector.Storable.Mutable as V
-import Text.Printf (printf)
-import Control.Monad
-import Control.Monad.ST
+import Prelude hiding (length, null, read)
+import Control.Monad.Extra
 import Data.IORef
+import qualified Data.Vector.Storable.Mutable as SMV
+import Foreign.ForeignPtr
+import Foreign.Storable
+import Text.Printf (printf)
 
 {-
       # = capacity
@@ -49,24 +48,25 @@ import Data.IORef
 
 -}
 
-type ArrayIndex = Int
+type VecIx   = Int
+type VecSize = Int
 
 -- |
 data OffHeapVector a = OffHeapVector {
   vRef    :: !(IORef (ForeignPtr a)),
-  capRef  :: !(IORef Int),
-  sizeRef :: !(IORef Int)
+  capRef  :: !(IORef VecSize),
+  sizeRef :: !(IORef VecSize)
   } deriving Eq
 
-size :: Storable a => OffHeapVector a -> IO Int
-size v = readIORef $ sizeRef v
+length :: Storable a => OffHeapVector a -> IO VecSize
+length = readIORef . sizeRef
 
 -- |
 -- >>> v <- new 10 :: IO (OffHeapVector Char)
--- >>> isEmpty v
+-- >>> null v
 -- True
 -- >>> pushBack v 'a'
--- >>> isEmpty v
+-- >>> null v
 -- False
 -- >>> pushBack v 'b'
 -- >>> pushBack v 'c'
@@ -79,71 +79,87 @@ size v = readIORef $ sizeRef v
 -- 'd'
 
 
-isEmpty :: Storable a => OffHeapVector a -> IO Bool
-isEmpty ov = do
-  sz <- size ov
-  return $ sz == 0
+null :: Storable a => OffHeapVector a -> IO Bool
+null = fmap (== 0) . length
 
-new :: Storable a => Int -> IO (OffHeapVector a)
-new initialCapacity = do
-  v <- mallocForeignPtrArray initialCapacity
-  vRef <- newIORef v
-  capRef <- newIORef initialCapacity
+new :: Storable a => VecSize -> IO (OffHeapVector a)
+new cap = do
+  v       <- mallocForeignPtrArray cap
+  vRef    <- newIORef v
+  capRef  <- newIORef cap
   sizeRef <- newIORef 0
   return $ OffHeapVector vRef capRef sizeRef
 
-expand :: Storable a => OffHeapVector a -> Int -> IO ()
-expand (OffHeapVector vRef capRef sizeRef) additionalCapacity = do
-  oldCapacity <- readIORef capRef
-  let newCapacity = additionalCapacity + oldCapacity
-  nv <- mallocForeignPtrArray newCapacity
-  oldV <- readIORef vRef
-  oldSize <- readIORef sizeRef
-  let srcVec = V.unsafeFromForeignPtr0 oldV oldSize
-      dstVec = V.unsafeFromForeignPtr0 nv oldSize
-  V.copy dstVec srcVec
-  writeIORef vRef nv
-  writeIORef capRef newCapacity
 
-checkBoundary :: Storable a => OffHeapVector a -> ArrayIndex -> IO ()
+expand :: Storable a => OffHeapVector a -> VecSize -> IO ()
+expand ov@(OffHeapVector vRef capRef sizeRef) deltaCap = do
+  v    <- readIORef vRef
+  cap  <- readIORef capRef
+  size <- readIORef sizeRef
+  let cap' = cap + deltaCap
+  v' <- mallocForeignPtrArray cap'
+  let srcVec = SMV.unsafeFromForeignPtr0 v  size
+      dstVec = SMV.unsafeFromForeignPtr0 v' size
+  SMV.copy dstVec srcVec
+  writeIORef vRef v'
+  writeIORef capRef cap'
+
+{-
+expand :: Storable a => OffHeapVector a -> VecSize -> IO ()
+expand (OffHeapVector vRef capRef sizeRef) deltaCap = do
+  cap  <- readIORef capRef
+  let cap' = cap + deltaCap
+  v    <- readIORef vRef
+  v'   <- mallocForeignPtrArray cap'
+  size <- readIORef sizeRef
+  let srcVec = SMV.unsafeFromForeignPtr0 v  size
+      dstVec = SMV.unsafeFromForeignPtr0 v' size
+  SMV.copy dstVec srcVec
+  writeIORef vRef v'
+  writeIORef capRef cap'
+-}
+
+checkBoundary :: Storable a => OffHeapVector a -> VecIx -> IO ()
 checkBoundary ov@(OffHeapVector vRef _ sizeRef) ix = do
-  v <- readIORef vRef
+  v    <- readIORef vRef
   size <- readIORef sizeRef
   when (ix < 0 || size <= ix) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
 
-unsafeRead :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
+unsafeRead :: Storable a => OffHeapVector a -> VecIx -> IO a
 unsafeRead (OffHeapVector vRef _ _) ix = do
   v <- readIORef vRef
   withForeignPtr v $ \p -> peekElemOff p ix
 
-read :: Storable a => OffHeapVector a -> ArrayIndex -> IO a
+read :: Storable a => OffHeapVector a -> VecIx -> IO a
 read ov@(OffHeapVector vRef _ sizeRef) ix = do
   checkBoundary ov ix
   unsafeRead ov ix
 
-unsafeWrite :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
+unsafeWrite :: Storable a => OffHeapVector a -> VecIx -> a -> IO ()
 unsafeWrite (OffHeapVector vRef _ _) ix e = do
   v <- readIORef vRef
   withForeignPtr v $ \p -> pokeElemOff p ix e
 
-write :: Storable a => OffHeapVector a -> ArrayIndex -> a -> IO ()
+write :: Storable a => OffHeapVector a -> VecIx -> a -> IO ()
 write ov@(OffHeapVector vRef _ sizeRef) ix e = do
   checkBoundary ov ix
   unsafeWrite ov ix e
 
 pushBack :: Storable a => OffHeapVector a -> a -> IO ()
 pushBack ov@(OffHeapVector vRef capRef sizeRef) e = do
-  v <- readIORef vRef
+  v    <- readIORef vRef
   size <- readIORef sizeRef
-  cap <- readIORef capRef
+  cap  <- readIORef capRef
   when (size == cap) $ expand ov cap -- expand the vector to the double size
   unsafeWrite ov size e
-  modifyIORef' sizeRef (+1)
+  modifyIORef' sizeRef (+ 1)
 
-popBack :: Storable a => OffHeapVector a -> IO a
-popBack ov@(OffHeapVector _ _ sizeRef) = do
+unsafePopBack :: Storable a => OffHeapVector a -> IO a
+unsafePopBack ov@(OffHeapVector _ _ sizeRef) = do
   size <- readIORef sizeRef
-  when (size == 0) $ error "OffHeapVector is Empty"
   e <- unsafeRead ov $ size - 1
   modifyIORef' sizeRef (subtract 1)
   return e
+
+popBack :: Storable a => OffHeapVector a -> IO a
+popBack ov = ifM (null ov) (error "OffHeapVector is Empty") $ unsafePopBack ov

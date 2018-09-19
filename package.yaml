@@ -19,6 +19,7 @@ dependencies:
   - data-default
   - doctest
   - dlist
+  - extra
   - transformers
 
 tests:

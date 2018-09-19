@@ -124,9 +124,9 @@ getNewIx :: (Default a, CStorable a) => SLList a -> IO CellIndex
 getNewIx list = do
   let array = getArray list
       stack = getStack list
-  isStackEmpty <- FS.isEmpty stack
+  isStackEmpty <- FS.null stack
   if isStackEmpty then do
-      allocatedIx <- OV.size array
+      allocatedIx <- OV.length array
       -- once set to the default, but will soon be overwritten by another value, which is a waste
       OV.pushBack array def
       return allocatedIx
