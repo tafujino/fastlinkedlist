@@ -90,7 +90,6 @@ new cap = do
   sizeRef <- newIORef 0
   return $ OffHeapVector vRef capRef sizeRef
 
-
 expand :: Storable a => OffHeapVector a -> VecSize -> IO ()
 expand ov@(OffHeapVector vRef capRef sizeRef) deltaCap = do
   v    <- readIORef vRef
@@ -103,21 +102,6 @@ expand ov@(OffHeapVector vRef capRef sizeRef) deltaCap = do
   SMV.copy dstVec srcVec
   writeIORef vRef v'
   writeIORef capRef cap'
-
-{-
-expand :: Storable a => OffHeapVector a -> VecSize -> IO ()
-expand (OffHeapVector vRef capRef sizeRef) deltaCap = do
-  cap  <- readIORef capRef
-  let cap' = cap + deltaCap
-  v    <- readIORef vRef
-  v'   <- mallocForeignPtrArray cap'
-  size <- readIORef sizeRef
-  let srcVec = SMV.unsafeFromForeignPtr0 v  size
-      dstVec = SMV.unsafeFromForeignPtr0 v' size
-  SMV.copy dstVec srcVec
-  writeIORef vRef v'
-  writeIORef capRef cap'
--}
 
 checkBoundary :: Storable a => OffHeapVector a -> VecIx -> IO ()
 checkBoundary ov@(OffHeapVector vRef _ sizeRef) ix = do
