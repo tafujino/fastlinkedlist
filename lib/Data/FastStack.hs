@@ -1,6 +1,3 @@
-
-{-# LANGUAGE BangPatterns #-}
-
 {-
 Module : Data.FastStack
 Description : A very fast stack using foreign memory.
@@ -15,13 +12,14 @@ foreign memory. The features are
 module Data.FastStack (
   FastStack(),
   new,
-  size,
-  isEmpty,
+  length,
+  null,
   push,
   pop
 )
 where
 
+import Prelude hiding (length, null)
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
@@ -56,15 +54,13 @@ import Data.IORef
 newtype FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
 
 new :: Storable a => Int -> IO (FastStack a)
-new initialCapacity = do
-  ov <- OV.new initialCapacity
-  return $ FastStack ov
+new cap = FastStack <$> OV.new cap
 
-size :: Storable a => FastStack a -> IO Int
-size (FastStack ov) = OV.size ov
+length :: Storable a => FastStack a -> IO Int
+length (FastStack ov) = OV.length ov
 
-isEmpty :: Storable a => FastStack a -> IO Bool
-isEmpty (FastStack ov) = OV.isEmpty ov
+null :: Storable a => FastStack a -> IO Bool
+null (FastStack ov) = OV.null ov
 
 push :: Storable a => FastStack a -> a -> IO ()
 push (FastStack ov) = OV.pushBack ov
