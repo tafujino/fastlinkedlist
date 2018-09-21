@@ -1,13 +1,19 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+--{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
+
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+--{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 
 module Data.ArrayLinkedList.DLList
   (
     DLList(),
     Iterator(..),
-    RIterator(..),
-    deref,
+--    deref,
 --    rDeref,
-    unsafeDeref,
+--    unsafeDeref,
 --    unsafeRDeref,
 {-    
     getBeginItr,
@@ -56,6 +62,7 @@ import qualified Data.ArrayLinkedList.DLList.Mutable as MDL
 import Foreign.CStorable
 import Foreign.Storable
 import GHC.Generics
+import Data.ArrayLinkedList.DLList.IteratorDirection
 import Data.Default
 import Data.IORef
 import Control.Monad
@@ -86,22 +93,94 @@ unsafeThaw = return . toMutableList
 
 --------------------------------------------------------------------------------
 
-data Iterator a = Iterator {
-  getList   :: !(DLList a),
-  getThisIx :: !CellIndex
-  } deriving Eq
+--newtype Iterator (d :: Direction) a = Iterator (MDL.MIterator (d :: Direction) a) deriving Eq
+newtype Iterator j (d :: Direction) a = Iterator (j d a) deriving Eq
 
-data RIterator a = RIterator {
-  rGetList   :: !(DLList a),
-  rGetThisIx :: !CellIndex
-  } deriving Eq
+--type FIterator a = Iterator (MDL.MFIterator a) Forward a
+--type RIterator a = Iterator (MDL.MRIterator a) Reverse a
 
-toMutableIterator :: (Default a, CStorable a) => Iterator a -> MDL.MIterator a
-toMutableIterator (Iterator dl ix) = MDL.MIterator (toMutableList dl) ix
+type FIterator a = Iterator MDL.MIterator Forward a
+type RIterator a = Iterator MDL.MIterator Reverse a
 
-toImmutableIterator :: (Default a, CStorable a) => MDL.MIterator a -> Iterator a
-toImmutableIterator (MDL.MIterator mdl ix) = Iterator (toImmutableList mdl) ix
+class (Default a, CStorable a, MDL.MDLListIterator j d a) => DLListIterator i j d a where
+  toMutableIterator   :: i j d a -> j d a
+  toImmutableIterator :: j d a -> i j d a
+  
+  unsafeDeref :: i j d a -> a
+  unsafeDeref itr = unsafeDupablePerformIO $ MDL.unsafeRead $ toMutableIterator itr
 
+  
+
+instance (Default a, CStorable a) => DLListIterator Iterator MDL.MIterator Forward a  where
+  toMutableIterator :: FIterator a -> MDL.MFIterator a
+  toMutableIterator (Iterator mitr) = mitr
+
+  toImmutableIterator :: MDL.MFIterator a -> FIterator a
+  toImmutableIterator = Iterator
+
+instance (Default a, CStorable a) => DLListIterator Iterator MDL.MIterator Reverse a  where
+  toMutableIterator :: RIterator a -> MDL.MRIterator a
+  toMutableIterator (Iterator mitr) = mitr
+
+  toImmutableIterator :: MDL.MRIterator a -> RIterator a
+  toImmutableIterator = Iterator
+
+  
+  
+  
+
+{-
+class (Default a, CStorable a) => DLListIterator i (d :: Direction) a where
+  toMutableIterator :: (MDL.MDLListIterator j d a) => i d a -> j d a
+  unsafeDeref :: (Default a, CStorable a) => i d a -> a
+  unsafeDeref itr = unsafeDupablePerformIO $ MDL.unsafeRead mitr
+
+    where
+      mitr = toMutableIterator itr
+
+instance (Default a, CStorable a) => DLListIterator Iterator Forward a where
+  toMutableIterator :: Iterator Forward a -> MDL.MIterator Forward a
+  toMutableIterator (Iterator mitr) = mitr
+
+instance (Default a, CStorable a) => DLListIterator Iterator Reverse a where
+  toMutableIterator :: Iterator Reverse a -> MDL.MIterator Reverse a
+  toMutableIterator (Iterator mitr) = mitr
+-}  
+
+--instance (Default a, CStorable a, MDL.MDLListIterator j) => DLListIterator Iterator MDL.MIterator a where
+--  toMutableIterator :: Iterator a -> MDL.MIterator a
+--  toMutableIterator (Iterator mitr) = mitr
+  
+  
+
+{-
+class (Default a, CStorable a) => DLListIterator i (d :: Direction) a where
+  toMutableIterator :: i d a -> MDL.MIterator d a
+--  toImmutableIterator :: (Default a, CStorable a) => MDL.MIterator d a -> Iterator d a
+  unsafeDeref :: (Default a, CStorable a) => i d a -> a  
+
+instance (Default a, CStorable a) => DLListIterator Iterator (d :: Direction) a where
+  toMutableIterator :: (Default a, CStorable a) => Iterator d a -> MDL.MIterator d a
+  toMutableIterator (Iterator mitr) = mitr
+
+--  toImmutableIterator :: (Default a, CStorable a) => MDL.MIterator d a -> Iterator d a
+--  toImmutableIterator mitr = Iterator mitr :: Iterator d a
+
+  unsafeDeref :: (Default a, CStorable a) => Iterator d a -> a
+  unsafeDeref = unsafeDupablePerformIO . MDL.unsafeRead . toMutableIterator
+-}
+
+--toMutableIterator :: (Default a, CStorable a) => Iterator (d :: Direction) a -> MDL.MIterator (d :: Direction) a
+--toMutableIterator (Iterator mitr) = mitr
+
+--toImmutableIterator :: (Default a, CStorable a) => MDL.MIterator d a -> Iterator d a
+--toImmutableIterator = Iterator
+
+
+
+
+
+{-
 getBeginItr :: (Default a, CStorable a) => DLList a -> Iterator a
 getBeginItr dl =
   Iterator { getList   = dl,
@@ -113,26 +192,31 @@ getEndItr dl =
   Iterator { getList   = dl,
              getThisIx = sentinelIx
            }
+-}
 
+--unsafeDeref :: (Default a, CStorable a) => Iterator a -> a
+--unsafeDeref = unsafeDupablePerformIO . MDL.unsafeRead . toMutableIterator
+
+{-
 -- |obtain the value of the cell the iterator points
 deref :: (Default a, CStorable a) => Iterator a -> Maybe a
 deref = unsafeDupablePerformIO . MDL.read . toMutableIterator
 
-unsafeDeref :: (Default a, CStorable a) => Iterator a -> a
-unsafeDeref = unsafeDupablePerformIO . MDL.unsafeRead . toMutableIterator
-
-nextItr :: (Default a, CStorable a) => Iterator a -> Maybe (Iterator a)
-nextItr = fmap toImmutableIterator . unsafeDupablePerformIO . MDL.getNextItr . toMutableIterator
-
-unsafeNextItr :: (Default a, CStorable a) => Iterator a -> Iterator a
-unsafeNextItr = toImmutableIterator . unsafeDupablePerformIO . MDL.unsafeGetNextItr . toMutableIterator
+unsafePrevItr :: (Default a, CStorable a) => Iterator a -> Iterator a
+unsafePrevItr = toImmutableIterator . unsafeDupablePerformIO . MDL.unsafePrevItr . toMutableIterator
 
 prevItr :: (Default a, CStorable a) => Iterator a -> Maybe (Iterator a)
-prevItr = fmap toImmutableIterator . unsafeDupablePerformIO . MDL.getPrevItr . toMutableIterator
+prevItr = fmap toImmutableIterator . unsafeDupablePerformIO . MDL.prevItr . toMutableIterator
 
-unsafePrevItr :: (Default a, CStorable a) => Iterator a -> Iterator a
-unsafePrevItr = toImmutableIterator . unsafeDupablePerformIO . MDL.unsafeGetPrevItr . toMutableIterator
+unsafeNextItr :: (Default a, CStorable a) => Iterator a -> Iterator a
+unsafeNextItr = toImmutableIterator . unsafeDupablePerformIO . MDL.unsafeNextItr . toMutableIterator
 
+nextItr :: (Default a, CStorable a) => Iterator a -> Maybe (Iterator a)
+nextItr = fmap toImmutableIterator . unsafeDupablePerformIO . MDL.nextItr . toMutableIterator
+
+
+
+-}
 
 
 
