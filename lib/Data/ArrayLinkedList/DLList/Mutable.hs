@@ -15,9 +15,10 @@ module Data.ArrayLinkedList.DLList.Mutable
     MDLList(),
     MDLListIterator,
     MutableIterator(),
-    MIterator,
-    MRIterator,
+    MIterator(),
+    MRIterator(),
     new,
+    newItr,
     beginItr,
     rBeginItr,
     endItr,
@@ -192,7 +193,6 @@ type MRIterator a = MutableIterator Reverse a
 
 --------------------------------------------------------------------------------
 
-
 -- | obtain the cell the iterator points
 --itrCell :: (Default a, CStorable a) => MutableIterator (d :: Direction) a -> IO (Cell a)
 --itrCell itr = OV.unsafeRead (listVector $ itrList itr) $ thisIx itr
@@ -200,6 +200,7 @@ type MRIterator a = MutableIterator Reverse a
 class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   -- | primitive operations whose definition depend on the iteration direction
   direction :: i d a -> Direction
+  newItr :: MDLList a -> CellIndex -> i d a
   thisList  :: i d a -> MDLList a
   prevIx    :: i d a -> IO CellIndex
   nextIx    :: i d a -> IO CellIndex
@@ -291,6 +292,9 @@ instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a w
   direction :: MIterator a -> Direction
   direction _ = Forward
 
+  newItr :: MDLList a -> CellIndex -> MIterator a
+  newItr list ix = MutableIterator { itrList = list, itrIx = ix }
+
   thisList :: MIterator a -> MDLList a
   thisList = itrList
 
@@ -309,6 +313,9 @@ instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a w
 instance (Default a, CStorable a) => MDLListIterator MutableIterator Reverse a where
   direction :: MutableIterator Reverse a -> Direction
   direction _ = Reverse
+
+  newItr :: MDLList a -> CellIndex -> MRIterator a
+  newItr list ix = MutableIterator { itrList = list, itrIx = ix }
 
   thisList :: MRIterator a -> MDLList a
   thisList = itrList
