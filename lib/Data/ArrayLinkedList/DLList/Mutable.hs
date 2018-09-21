@@ -14,13 +14,9 @@ module Data.ArrayLinkedList.DLList.Mutable
   (
     MDLList(),
     MDLListIterator,
-    MIterator(..),
+    MIterator(),
     MFIterator,
     MRIterator,
-    CellIndex,
-    CellSize,
-    Direction,
-    sentinelIx,
     new,
     beginItr,
     rBeginItr,
@@ -59,7 +55,7 @@ Description : A fast doubly linked list implemented with an unboxed array
 A doubly linked list implemented using an unboxed array.
 An array is expanded to the double size when it overflows.
 A dummy node is introduced for speed.
--}  
+-}
 
 import Prelude hiding (read)
 import Control.Monad
@@ -67,6 +63,7 @@ import Control.Monad.Extra
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class
 import Data.ArrayLinkedList.DLList.IteratorDirection
+import Data.ArrayLinkedList.DLList.Ix
 import Data.Default
 import qualified Data.FastStack as FS
 import Data.IORef
@@ -158,12 +155,6 @@ import GHC.Generics
 -- >>> toList list
 -- [2,100,-1,0]
 
-type CellIndex = Int
-type CellSize  = Int
-
-sentinelIx :: CellIndex
-sentinelIx = 0
-
 -- a cell in an array
 data Cell a = Cell {
   leftIx    :: !CellIndex,
@@ -232,7 +223,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   prevItr :: i d a -> IO (Maybe (i d a))
   prevItr = ifValidItr return <=< unsafePrevItr
 
-  nextItr :: i d a -> IO (Maybe (i d a))  
+  nextItr :: i d a -> IO (Maybe (i d a))
   nextItr = ifValidItr return <=< unsafeNextItr
 
   unsafeRead :: i d a -> IO a
@@ -280,7 +271,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 -- | Delete a cell pointed by the iterator, push the cell index to the stack, and
 --   return the next iterator
   unsafeDelete :: i d a -> IO (i d a)
-  unsafeDelete itr = do 
+  unsafeDelete itr = do
     let list = thisList itr
         vec = listVector list
         dir = direction itr
@@ -292,7 +283,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     return $ setIx ix1 itr
 
   delete :: i d a -> IO (Maybe (i d a))
-  delete = ifValidItr unsafeDelete  
+  delete = ifValidItr unsafeDelete
 
 --------------------------------------------------------------------------------
 
@@ -334,8 +325,8 @@ instance (Default a, CStorable a) => MDLListIterator MIterator Reverse a where
   setIx :: CellIndex -> MRIterator a -> MIterator d a
   setIx ix itr = itr { itrIx = ix }
 
---------------------------------------------------------------------------------  
-    
+--------------------------------------------------------------------------------
+
 new :: (Default a, CStorable a) => CellSize -> IO (MDLList a)
 new initialCapacity = do
   vec   <- OV.new $ initialCapacity + 1 -- one cell is additionaly reserved for the sentinel
@@ -369,7 +360,7 @@ rBeginItr list = do
 endItr :: (Default a, CStorable a) => MDLList a -> MIterator Forward a
 endItr list = MIterator { itrList = list, itrIx = sentinelIx }
 
-rEndItr :: (Default a, CStorable a) => MDLList a -> MIterator Forward a
+rEndItr :: (Default a, CStorable a) => MDLList a -> MIterator Reverse a
 rEndItr list = MIterator { itrList = list, itrIx = sentinelIx }
 
 setPrevCellIx :: (Default a, CStorable a) => Direction -> CellIndex -> Cell a -> Cell a
@@ -397,7 +388,7 @@ unsafePopFront = unsafePop <=< beginItr
 
 popFront :: (Default a, CStorable a) => MDLList a -> IO (Maybe a)
 popFront = ifValidItr unsafePop <=< beginItr
-  
+
 unsafePopBack :: (Default a, CStorable a) => MDLList a -> IO a
 unsafePopBack = unsafePop <=< rBeginItr
 

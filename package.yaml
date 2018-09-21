@@ -14,7 +14,7 @@ extra-source-files:
 dependencies:
   - base >= 4.7 && < 5
   - vector
-  - primitive
+#  - primitive
   - c-storable-deriving
   - data-default
   - doctest
@@ -33,4 +33,7 @@ library:
      - Data.FastStack
      - Data.ArrayLinkedList.SLList
      - Data.ArrayLinkedList.DLList
+#     - Data.ArrayLinkedList.DLList.IteratorDirection     
+     - Data.ArrayLinkedList.DLList.Ix     
+     - Data.ArrayLinkedList.DLList.Mutable     
   source-dirs: lib
