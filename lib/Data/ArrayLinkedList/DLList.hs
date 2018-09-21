@@ -93,7 +93,7 @@ toImmutableList :: (Default a, CStorable a) => MDL.MDLList a -> DLList a
 toImmutableList = DLList
 
 unsafeFreeze :: (Default a, CStorable a) => MDL.MDLList a -> IO (DLList a)
-unsafeFreeze = return . DLList
+unsafeFreeze = return . toImmutableList
 
 unsafeThaw :: (Default a, CStorable a) => DLList a -> IO (MDL.MDLList a)
 unsafeThaw = return . toMutableList
