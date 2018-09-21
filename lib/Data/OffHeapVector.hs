@@ -15,10 +15,12 @@ module Data.OffHeapVector (
   new,
   null,
   length,
-  read,
-  write,
   unsafeRead,
+  read,
   unsafeWrite,
+  write,
+  unsafeModify,
+  modify,
   pushBack,
   popBack,
   unsafePopBack,
@@ -115,9 +117,7 @@ unsafeRead (OffHeapVector vRef _ _) ix = do
   withForeignPtr v $ \p -> peekElemOff p ix
 
 read :: Storable a => OffHeapVector a -> VecIx -> IO a
-read ov@(OffHeapVector vRef _ sizeRef) ix = do
-  checkBoundary ov ix
-  unsafeRead ov ix
+read ov ix = checkBoundary ov ix >> unsafeRead ov ix
 
 unsafeWrite :: Storable a => OffHeapVector a -> VecIx -> a -> IO ()
 unsafeWrite (OffHeapVector vRef _ _) ix e = do
@@ -125,9 +125,13 @@ unsafeWrite (OffHeapVector vRef _ _) ix e = do
   withForeignPtr v $ \p -> pokeElemOff p ix e
 
 write :: Storable a => OffHeapVector a -> VecIx -> a -> IO ()
-write ov@(OffHeapVector vRef _ sizeRef) ix e = do
-  checkBoundary ov ix
-  unsafeWrite ov ix e
+write ov ix e = checkBoundary ov ix >> unsafeWrite ov ix e
+
+unsafeModify :: Storable a => OffHeapVector a -> (a -> a) -> VecIx -> IO ()
+unsafeModify ov f ix = unsafeWrite ov ix =<< f <$> unsafeRead ov ix
+
+modify :: Storable a => OffHeapVector a -> (a -> a) -> VecIx -> IO ()
+modify ov f ix = checkBoundary ov ix >> unsafeModify ov f ix
 
 pushBack :: Storable a => OffHeapVector a -> a -> IO ()
 pushBack ov@(OffHeapVector vRef capRef sizeRef) e = do

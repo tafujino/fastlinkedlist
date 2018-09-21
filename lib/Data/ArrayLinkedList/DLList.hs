@@ -1,57 +1,44 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Data.ArrayLinkedList.DLList
   (
-    DLList(),
-    new,
-    Iterator(..),
-    RIterator(..),
-    deref,
-    rDeref,
-    unsafeDeref,
-    unsafeRDeref,
-    getBeginItr,
-    getRBeginItr,
-    getEndItr,
-    getREndItr,
-    getNextItr,
-    rGetNextItr,
-    getPrevItr,
-    rGetPrevItr,
-    unsafeGetNextItr,
-    unsafeRGetNextItr,
-    unsafeGetPrevItr,
-    unsafeRGetPrevItr,
-    unsafeWrite,
-    write,
-    unsafeModify,
-    modify,
-    insert,
-    rInsert,
-    delete,
-    rDelete,
-    unsafeDelete,
-    unsafeRDelete,
-    pushFront,
-    pushBack,
-    popFront,
-    popBack,
-    unsafePopFront,
-    unsafePopBack,
-    foldlItr,
+    DLList(..),
+--    ImmutableIterator(..),
+--    DLListIterator(..),
+    Iterator(),
+    RIterator(),
+    unsafeFreeze,
+    unsafeThaw,
+    newItr,
+    thisIx,
+    thisList,
+    element,
+    unsafeElement,
+    beginItr,
+    rBeginItr,
+    endItr,
+    rEndItr,
+    unsafePrevItr,
+    prevItr,
+    unsafeNextItr,
+    nextItr,
     foldl,
-    foldlIO,
-    foldlIO_,
-    foldrItr,
     foldr,
-    foldrIO,
-    foldrIO_,
-    forIO_,
-    mapIO_,
+    foldlM,
+    foldM,
+    foldrM,
+--    foldlItr,
+--    foldrItr,
+--    foldlMItr,
+--    foldrMItr,
+    forM_,
+    mapM_,
     toList,
-    sentinelIx,
-    CellIndex,
-    CellSize
+    toIxList
   )
 where
 
@@ -64,436 +51,147 @@ An array is expanded to the double size when it overflows.
 A dummy node is introduced for speed.
 -}
 
-import Prelude hiding(foldl, foldr)
-import qualified Data.OffHeapVector as OV
-import qualified Data.FastStack as FS
-import Foreign.CStorable
-import Foreign.Storable
-import GHC.Generics
+import Prelude hiding (foldl, foldr, mapM_)
+import Control.Monad hiding (foldM, forM_, mapM_)
+import Control.Monad.Identity hiding (foldM, forM_, mapM_)
+import qualified Data.ArrayLinkedList.DLList.Mutable as MDL
+import Data.ArrayLinkedList.DLList.IteratorDirection
+import Data.ArrayLinkedList.DLList.Ix
 import Data.Default
-import Data.IORef
-import Control.Monad
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Class
+import Foreign.CStorable
+import GHC.Generics
+import System.IO.Unsafe
 
-type CellIndex = Int
-type CellSize  = Int
+newtype DLList a = DLList (MDL.MDLList a)
 
-sentinelIx :: CellIndex
-sentinelIx = 0
+toMutableList :: (Default a, CStorable a) => DLList a -> MDL.MDLList a
+toMutableList (DLList mdl) = mdl
 
--- a cell in an array
-data Cell a = Cell {
-  getPrevIx :: !CellIndex,
-  getNextIx :: !CellIndex,
-  getValue  :: !a
-  } deriving (Show, Generic, CStorable, Default)
+toImmutableList :: (Default a, CStorable a) => MDL.MDLList a -> DLList a
+toImmutableList = DLList
 
-instance CStorable a => Storable (Cell a) where
-  peek      = cPeek
-  poke      = cPoke
-  alignment = cAlignment
-  sizeOf    = cSizeOf
+unsafeFreeze :: (Default a, CStorable a) => MDL.MDLList a -> IO (DLList a)
+unsafeFreeze = return . toImmutableList
 
-data DLList a = DLList {
-  getArray :: !(OV.OffHeapVector (Cell a)),
-  getStack :: !(FS.FastStack CellIndex)
-  } deriving Eq
+unsafeThaw :: (Default a, CStorable a) => DLList a -> IO (MDL.MDLList a)
+unsafeThaw = return . toMutableList
 
-data Iterator a = Iterator {
-  getList   :: !(DLList a),
-  getThisIx :: !CellIndex
-  } deriving Eq
+-- to do: implement safe freeze and thaw (copy all the elements of list)
 
-data RIterator a = RIterator {
-  rGetList   :: !(DLList a),
-  rGetThisIx :: !CellIndex
-  } deriving Eq
+--------------------------------------------------------------------------------
 
--- |
--- >>> list <- Data.ArrayLinkedList.DLList.new 10 :: IO (Data.ArrayLinkedList.DLList.DLList Int)
--- >>> pushFront list 1
--- >>> pushFront list 2
--- >>> pushFront list 3
--- >>> toList list
--- [3,2,1]
--- >>> forIO_ list print
--- 3
--- 2
--- 1
--- >>> foldl (+) 0 list
--- 6
--- >>> pushBack list 0
--- >>> toList list
--- [3,2,1,0]
--- >>> popFront list
--- Just 3
--- >>> toList list
--- [2,1,0]
--- >>> i0 <- getBeginItr list
--- >>> Just i1 <- getNextItr i0
--- >>> insert i1 100
--- >>> toList list
--- [2,100,1,0]
--- >>> ri0 <- getRBeginItr list
--- >>> Just ri1 <- rGetNextItr ri0
--- >>> Just ri2 <- rDelete ri1
--- >>> toList list
--- [2,100,0]
--- >>> rInsert ri2 (-1)
--- >>> toList list
--- [2,100,-1,0]
+-- | Immutable iterator wraps mutable iterator (of the same direction)
+newtype ImmutableIterator j (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
 
--- |
--- >>> list <- Data.ArrayLinkedList.DLList.new 10 :: IO (Data.ArrayLinkedList.DLList.DLList Int)
--- >>> toList list
--- []
--- >>> forIO_ list print
--- >>> foldl (+) 0 list
--- 0
--- >>> i0 <- getBeginItr list
--- >>> deref i0
--- Nothing
--- >>> mi1 <- getNextItr i0
--- >>> maybe Nothing (const $ Just "Iterator") mi1
--- Nothing
--- >>> mi2 <- getPrevItr i0
--- >>> maybe Nothing (const $ Just "Iterator") mi2
--- Nothing
--- >>> popFront list
--- Nothing
--- >>> popBack list
--- Nothing
+type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
+type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
--- |
--- >>> list <- Data.ArrayLinkedList.DLList.new 10 :: IO (Data.ArrayLinkedList.DLList.DLList Int)
--- >>> pushFront list 1
--- >>> pushFront list 2
--- >>> pushFront list 3
--- >>> toList list
--- [3,2,1]
--- >>> pushBack list 0
--- >>> toList list
--- [3,2,1,0]
--- >>> unsafePopFront list
--- 3
--- >>> toList list
--- [2,1,0]
--- >>> i0 <- getBeginItr list
--- >>> i1 <- unsafeGetNextItr i0
--- >>> insert i1 100
--- >>> toList list
--- [2,100,1,0]
--- >>> ri0 <- getRBeginItr list
--- >>> ri1 <- unsafeRGetNextItr ri0
--- >>> ri2 <- unsafeRDelete ri1
--- >>> toList list
--- [2,100,0]
--- >>> rInsert ri2 (-1)
--- >>> toList list
--- [2,100,-1,0]
+class (Default a, CStorable a, MDL.MDLListIterator j (d :: Direction) a) => DLListIterator i j d a where
+  toMutableItr   :: i j d a -> j d a
+  toImmutableItr :: j d a -> i j d a
+
+  newItr :: DLList a -> CellIndex -> i j d a
+
+  thisIx :: i j d a -> CellIndex
+  thisIx = MDL.thisIx . toMutableItr
+
+  thisList :: i j d a -> DLList a
+  thisList = DLList . MDL.thisList . toMutableItr
+
+  unsafeElement :: i j d a -> a
+  unsafeElement = unsafeDupablePerformIO . MDL.unsafeRead . toMutableItr
+
+  -- | Obtain the value of the cell pointed by the iterator
+  element :: i j d a -> a
+  element = unsafeDupablePerformIO . MDL.read . toMutableItr
+
+  unsafePrevItr :: i j d a -> i j d a
+  unsafePrevItr = toImmutableItr . unsafeDupablePerformIO . MDL.unsafePrevItr . toMutableItr
+
+  prevItr :: i j d a -> Maybe (i j d a)
+  prevItr = fmap toImmutableItr . unsafeDupablePerformIO . MDL.prevItr . toMutableItr
+
+  unsafeNextItr :: i j d a -> i j d a
+  unsafeNextItr = toImmutableItr . unsafeDupablePerformIO . MDL.unsafeNextItr . toMutableItr
+
+  nextItr :: i j d a -> Maybe (i j d a)
+  nextItr = fmap toImmutableItr . unsafeDupablePerformIO . MDL.nextItr . toMutableItr
+
+instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Forward a where
+  toMutableItr :: Iterator a -> MDL.MIterator a
+  toMutableItr (ImmutableIterator mitr) = mitr
+
+  toImmutableItr :: MDL.MIterator a -> Iterator a
+  toImmutableItr = ImmutableIterator
+
+  newItr :: DLList a -> CellIndex -> Iterator a
+  newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+
+instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Reverse a where
+  toMutableItr :: RIterator a -> MDL.MRIterator a
+  toMutableItr (ImmutableIterator mitr) = mitr
+
+  toImmutableItr :: MDL.MRIterator a -> RIterator a
+  toImmutableItr = ImmutableIterator
+
+  newItr :: DLList a -> CellIndex -> RIterator a
+  newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+
+beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
+beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
+
+rBeginItr :: (Default a, CStorable a) => DLList a -> RIterator a
+rBeginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.rBeginItr . toMutableList
+
+endItr :: (Default a, CStorable a) => DLList a -> Iterator a
+endItr = ImmutableIterator . MDL.endItr . toMutableList
+
+rEndItr :: (Default a, CStorable a) => DLList a -> RIterator a
+rEndItr = ImmutableIterator . MDL.rEndItr . toMutableList
 
 
-new :: (Default a, CStorable a) => CellSize -> IO (DLList a)
-new initialCapacity = do
-  array <- OV.new $ initialCapacity + 1 -- one cell is additionaly reserved for the sentinel
-  stack <- FS.new initialCapacity
-  OV.pushBack array Cell { getPrevIx = sentinelIx,
-                           getNextIx = sentinelIx,
-                           getValue = def }
-  return $ DLList array stack
+-- DList cannot be Foldable, becasue the type its element is restricted to (Default a, CStorable a)
 
--- | obtain an index of a cell, either from a stack or by allocating a new cell
-getNewIx :: (Default a, CStorable a) => DLList a -> IO CellIndex
-getNewIx list = do
-  let array = getArray list
-      stack = getStack list
-  isStackEmpty <- FS.null stack
-  if isStackEmpty
-    then do
-      allocatedIx <- OV.length array
-      -- once set to the default, but will soon be overwritten by another value, which is a waste
-      OV.pushBack array def
-      return allocatedIx
-    else FS.pop stack
+-- to do: generate foldr and foldl from foldMap
 
--- |(private) obtain the cell the iterator points
-itrToCell :: (Default a, CStorable a) => Iterator a -> IO (Cell a)
-itrToCell itr = OV.unsafeRead (getArray $ getList itr) (getThisIx itr)
+foldlMItr :: (Default a, CStorable a, Monad m) => (b -> Iterator a -> m b) -> b -> Iterator a -> m b
+foldlMItr f z itr = maybe return (flip $ foldlMItr f) (nextItr itr) =<< f z itr
 
--- |(private) obtain the cell the reverse iterator points
-rItrToCell :: (Default a, CStorable a) => RIterator a -> IO (Cell a)
-rItrToCell itr = OV.unsafeRead (getArray $ rGetList itr) (rGetThisIx itr)
+foldlM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
+foldlM f z list = foldlMItr (\x -> f x . unsafeElement) z $ beginItr list
 
--- |obtain the value of the cell the iterator points
-deref :: (Default a, CStorable a) => Iterator a -> IO (Maybe a)
-deref itr = runMaybeT $ do
-  guard $ getThisIx itr /= sentinelIx
-  getValue <$> lift (itrToCell itr)
+foldM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
+foldM = foldlM
 
--- |obtain the value of the cell the reverse iterator points
-rDeref :: (Default a, CStorable a) => RIterator a -> IO (Maybe a)
-rDeref itr = runMaybeT $ do
-  guard $ rGetThisIx itr /= sentinelIx
-  getValue <$> lift (rItrToCell itr)
+foldrMItr :: (Default a, CStorable a, Monad m) => (RIterator a -> b -> m b) -> b -> RIterator a -> m b
+foldrMItr f z itr = maybe return (flip $ foldrMItr f) (nextItr itr) =<< f itr z
 
-unsafeDeref :: (Default a, CStorable a) => Iterator a -> IO a
-unsafeDeref itr = getValue <$> itrToCell itr
+foldrM :: (Default a, CStorable a, Monad m) => (a -> b -> m b) -> b -> DLList a -> m b
+foldrM f z list = foldrMItr (f . unsafeElement)  z $ rBeginItr list
 
-unsafeRDeref :: (Default a, CStorable a) => RIterator a -> IO a
-unsafeRDeref itr = getValue <$> rItrToCell itr
+foldl :: (Default a, CStorable a) => (b -> a -> b) -> b -> DLList a -> b
+foldl f z l = runIdentity $ foldlM ((return . ) . f) z l
 
-getBeginItr :: (Default a, CStorable a) => DLList a -> IO (Iterator a)
-getBeginItr list = do
-  sentinelCell <- OV.unsafeRead (getArray list) sentinelIx
-  return Iterator { getList = list, getThisIx = getNextIx sentinelCell }
+foldr :: (Default a, CStorable a) => (a -> b -> b) -> b -> DLList a -> b
+foldr f z l = runIdentity $ foldrM ((return . ) . f) z l
 
-getRBeginItr :: (Default a, CStorable a) => DLList a -> IO (RIterator a)
-getRBeginItr list = do
-  sentinelCell <- OV.unsafeRead (getArray list) sentinelIx
-  return RIterator { rGetList = list, rGetThisIx = getPrevIx sentinelCell }
+foldlItr :: (Default a, CStorable a) => (b -> Iterator a -> b) -> b -> Iterator a -> b
+foldlItr f z itr = runIdentity $ foldlMItr ((return . ) . f) z itr
 
-getEndItr :: (Default a, CStorable a) => DLList a -> Iterator a
-getEndItr list = Iterator { getList = list, getThisIx = sentinelIx }
+foldrItr :: (Default a, CStorable a) => (RIterator a -> b -> b) -> b -> RIterator a -> b
+foldrItr f z itr = runIdentity $ foldrMItr ((return . ) . f) z itr
 
-getREndItr :: (Default a, CStorable a) => DLList a -> RIterator a
-getREndItr list = RIterator { rGetList = list, rGetThisIx = sentinelIx }
+mapM_ :: (Default a, CStorable a, Monad m) => (a -> m b) -> DLList a -> m ()
+mapM_ f l = void $ foldlM (const $ void . f) () l
 
-getPrevItr :: (Default a, CStorable a) => Iterator a -> IO (Maybe (Iterator a))
-getPrevItr itr = runMaybeT $ do
-  prevIx <- getPrevIx <$> lift (itrToCell itr)
-  guard $ prevIx /= sentinelIx
-  return itr { getThisIx = prevIx }
+forM_ :: (Default a, CStorable a, Monad m) => DLList a -> (a -> m b) -> m ()
+forM_ = flip mapM_
 
-getNextItr :: (Default a, CStorable a) => Iterator a -> IO (Maybe (Iterator a))
-getNextItr itr = runMaybeT $ do
-  guard $ getThisIx itr /= sentinelIx
-  nextIx <- getNextIx <$> lift (itrToCell itr)
-  return itr { getThisIx = nextIx }
+toList :: (Default a, CStorable a) => DLList a -> [a]
+toList l = foldr (:) [] l
 
-unsafeGetPrevItr :: (Default a, CStorable a) => Iterator a -> IO (Iterator a)
-unsafeGetPrevItr itr = do
-  cell <- itrToCell itr
-  return itr { getThisIx = getPrevIx cell }
+-- to do: implement fromList
 
-unsafeGetNextItr :: (Default a, CStorable a) => Iterator a -> IO (Iterator a)
-unsafeGetNextItr itr = do
-  cell <- itrToCell itr
-  return itr { getThisIx = getNextIx cell }
+toIxList :: (Default a, CStorable a) => DLList a -> [CellIndex]
+toIxList = foldrItr ((:) . thisIx) [] . rBeginItr
 
-rGetPrevItr :: (Default a, CStorable a) => RIterator a -> IO (Maybe (RIterator a))
-rGetPrevItr itr = runMaybeT $ do
-  nextIx <- getNextIx <$> lift (rItrToCell itr)
-  guard $ nextIx /= sentinelIx
-  return itr { rGetThisIx = nextIx }
-
-rGetNextItr :: (Default a, CStorable a) => RIterator a -> IO (Maybe (RIterator a))
-rGetNextItr itr = runMaybeT $ do
-  guard $ rGetThisIx itr /= sentinelIx
-  prevIx <- getPrevIx <$> lift (rItrToCell itr)
-  return itr { rGetThisIx = prevIx }
-
-unsafeRGetPrevItr :: (Default a, CStorable a) => RIterator a -> IO (RIterator a)
-unsafeRGetPrevItr itr = do
-  cell <- rItrToCell itr
-  return itr { rGetThisIx = getNextIx cell }
-
-unsafeRGetNextItr :: (Default a, CStorable a) => RIterator a -> IO (RIterator a)
-unsafeRGetNextItr itr = do
-  cell <- rItrToCell itr
-  return itr { rGetThisIx = getPrevIx cell }
-
-unsafeWrite :: (Default a, CStorable a) => Iterator a -> a -> IO ()
-unsafeWrite itr e = do
-  let array = getArray $ getList itr
-      ix = getThisIx itr
-  cell <- OV.unsafeRead array ix
-  OV.unsafeWrite array ix cell { getValue = e }
-
-write :: (Default a, CStorable a) => Iterator a -> a -> IO ()
-write itr e = do
-  let array = getArray $ getList itr
-      ix = getThisIx itr
-  when (ix /= sentinelIx) $ error "cannot update the value of sentinel cell"
-  cell <- OV.unsafeRead array ix
-  OV.unsafeWrite array ix cell { getValue = e }
-
-unsafeModify :: (Default a, CStorable a) => Iterator a -> (a -> a) -> IO ()
-unsafeModify itr f = unsafeWrite itr =<< f <$> unsafeDeref itr
-
-modify :: (Default a, CStorable a) => Iterator a -> (a -> a) -> IO ()
-modify itr f = do
-  let array = getArray $ getList itr
-      ix = getThisIx itr
-  when (ix /= sentinelIx) $ error "cannot update the value of sentinel cell"
-  unsafeModify itr f
-
--- |(private) insert an element between two indices, which should be adjacent
-insertByIx :: (Default a, CStorable a) => DLList a -> CellIndex -> CellIndex -> a -> IO CellIndex
-insertByIx list leftIx rightIx e = do
-  let array = getArray list
-  newIx <- getNewIx list
-  leftCell  <- OV.unsafeRead array leftIx
-  OV.unsafeWrite array leftIx  $ leftCell  { getNextIx = newIx }
-  rightCell <- OV.unsafeRead array rightIx
-  OV.unsafeWrite array rightIx $ rightCell { getPrevIx = newIx }
-  OV.unsafeWrite array newIx Cell { getPrevIx = leftIx, getNextIx = rightIx, getValue = e }
-  return newIx
-
--- |insert an element to just before where the iterator points (the left cell of the pointed cell)
-insert :: (Default a, CStorable a) => Iterator a -> a -> IO (Iterator a)
-insert itr e = do
-  cell <- itrToCell itr
-  ix <- insertByIx (getList itr) (getPrevIx cell) (getThisIx itr) e
-  return itr { getThisIx = ix }
-
--- |insert an element to just before where the reverse iterator points (the right cell of the pointed cell)
-rInsert :: (Default a, CStorable a) => RIterator a -> a -> IO (RIterator a)
-rInsert itr e = do
-  cell <- rItrToCell itr
-  ix <- insertByIx (rGetList itr) (rGetThisIx itr) (getNextIx cell) e
-  return itr { rGetThisIx = ix }
-
--- |(private) delete a cell of the given index from the list and push the cell index to the stack
-deleteByIx :: (Default a, CStorable a) => DLList a -> CellIndex -> IO ()
-deleteByIx list ix = do
-  let array = getArray list
-  thisCell <- OV.unsafeRead array ix
-  let leftIx  = getPrevIx thisCell
-      rightIx = getNextIx thisCell
-  leftCell <- OV.unsafeRead array leftIx
-  rightCell <- OV.unsafeRead array rightIx
-  OV.unsafeWrite array leftIx  leftCell  { getNextIx = rightIx }
-  OV.unsafeWrite array rightIx rightCell { getPrevIx = leftIx }
-  FS.push (getStack list) ix
-
--- |delete a cell pointed by the iterator from the list and push the cell index to the stack
-delete :: (Default a, CStorable a) => Iterator a -> IO (Maybe (Iterator a))
-delete itr = runMaybeT $ do
-  let thisIx = getThisIx itr
-  guard $ thisIx /= sentinelIx
-  nextItr <- lift $ unsafeGetNextItr itr
-  lift $ deleteByIx (getList itr) thisIx
-  return nextItr
-
-unsafeDelete :: (Default a, CStorable a) => Iterator a -> IO (Iterator a)
-unsafeDelete itr = do
-  nextItr <- unsafeGetNextItr itr
-  deleteByIx (getList itr) (getThisIx itr)
-  return nextItr
-
--- |delete a cell pointed by the reverse iterator from the list and push the cell index to the stack
-rDelete :: (Default a, CStorable a) => RIterator a -> IO (Maybe (RIterator a))
-rDelete itr = runMaybeT $ do
-  let thisIx = rGetThisIx itr
-  guard $ thisIx /= sentinelIx
-  nextItr <- lift $ unsafeRGetNextItr itr
-  lift $ deleteByIx (rGetList itr) thisIx
-  return nextItr
-
-unsafeRDelete :: (Default a, CStorable a) => RIterator a -> IO (RIterator a)
-unsafeRDelete itr = do
-  nextItr <- unsafeRGetNextItr itr
-  deleteByIx (rGetList itr) (rGetThisIx itr)
-  return nextItr
-
-pushFront :: (Default a, CStorable a) => DLList a -> a -> IO ()
-pushFront list e = void $ (`insert` e) =<< getBeginItr list
-
-pushBack :: (Default a, CStorable a) => DLList a -> a -> IO ()
-pushBack list e = void $ (`rInsert` e) =<< getRBeginItr list
-
-popFront :: (Default a, CStorable a) => DLList a -> IO (Maybe a)
-popFront list = runMaybeT $ do
-  itr <- lift $ getBeginItr list
-  v <- MaybeT $ deref itr
-  lift $ deleteByIx list $ getThisIx itr
-  return v
-
-unsafePopFront :: (Default a, CStorable a) => DLList a -> IO a
-unsafePopFront list = do
-  itr <- getBeginItr list
-  v <- unsafeDeref itr
-  deleteByIx list $ getThisIx itr
-  return v
-
-popBack :: (Default a, CStorable a) => DLList a -> IO (Maybe a)
-popBack list = runMaybeT $ do
-  itr <- lift $ getRBeginItr list
-  v <- MaybeT $ rDeref itr
-  lift $ deleteByIx list $ rGetThisIx itr
-  return v
-
-unsafePopBack :: (Default a, CStorable a) => DLList a -> IO a
-unsafePopBack list = do
-  itr <- getRBeginItr list
-  v <- unsafeRDeref itr
-  deleteByIx list $ rGetThisIx itr
-  return v
-
-foldlItr :: (Default a, CStorable a) => (b -> Iterator a -> IO b) -> b -> Iterator a -> IO b
-foldlItr f z itr
-  | getThisIx itr == sentinelIx = return z
-  | otherwise = do
-      z' <- f z itr  -- (1)
-      nextItr <- unsafeGetNextItr itr  -- (2)
-      foldlItr f z' nextItr
--- if you want to delete the cell in f, (1) and (2) should be exchanged
-
-foldlIO :: (Default a, CStorable a) => (b -> a -> IO b) -> b -> DLList a -> IO b
-foldlIO f z = foldlItr f' z <=< getBeginItr
-  where f' w = f w <=< unsafeDeref
-
-foldlIO_ :: (Default a, CStorable a) => (b -> a -> IO b) -> b -> DLList a -> IO ()
-foldlIO_ f z list = void $ foldlIO f z list
-
-foldl :: (Default a, CStorable a) => (b -> a -> b) -> b -> DLList a -> IO b
-foldl f = foldlIO $ (return .) . f
-
-foldl1 :: (Default a, CStorable a) => (a -> a -> a) -> DLList a -> IO (Maybe a)
-foldl1 f list = runMaybeT $ do
-  itr0 <- lift $ getBeginItr list
-  v <- MaybeT $ deref itr0
-  itr1 <- lift $ unsafeGetNextItr itr0
-  lift $ foldlItr f' v itr1
-    where f' w itr = f w <$> unsafeDeref itr
-
-foldrItr :: (Default a, CStorable a) => (RIterator a -> b -> IO b) -> b -> RIterator a -> IO b
-foldrItr f z itr
-  | rGetThisIx itr == sentinelIx = return z
-  | otherwise = do
-      z' <- f itr z
-      nextItr <- unsafeRGetNextItr itr
-      foldrItr f z' nextItr
-
-foldrIO :: (Default a, CStorable a) => (a -> b -> IO b) -> b -> DLList a -> IO b
-foldrIO f z = getRBeginItr >=> foldrItr f' z
-  where f' itr w = unsafeRDeref itr >>= flip f w
-
-foldrIO_ :: (Default a, CStorable a) => (a -> b -> IO b) -> b -> DLList a -> IO ()
-foldrIO_ f z list = void $ foldrIO f z list
-
-foldr :: (Default a, CStorable a) => (a -> b -> b) -> b -> DLList a -> IO b
-foldr f = foldrIO $ (return .) . f
-
-foldr1 :: (Default a, CStorable a) => (a -> a -> a) -> DLList a -> IO (Maybe a)
-foldr1 f list = runMaybeT $ do
-  itr0 <- lift $ getRBeginItr list
-  v <- MaybeT $ rDeref itr0
-  itr1 <- lift $ unsafeRGetNextItr itr0
-  lift $ foldrItr f' v itr1 
-    where f' itr w = flip f w <$> unsafeRDeref itr 
-
-forItr_ :: (Default a, CStorable a) => Iterator a -> (Iterator a -> IO ()) -> IO ()
-forItr_ itr f = foldlItr (const $ void . f) () itr
--- (another impl.) forItr_ itr f = foldlItr (\x y -> f y >> return x) () itr
-
-forIO_ :: (Default a, CStorable a) => DLList a -> (a -> IO ()) -> IO ()
-forIO_ list f = foldlIO_ (const $ void . f) () list
--- (another impl.) forIO_ list f = foldlIO_ (\x y -> f y >> return x) () list
-
-mapIO_ :: (Default a, CStorable a) => (a -> IO ()) -> DLList a -> IO ()
-mapIO_ = flip forIO_
-
-toList :: (Default a, CStorable a) => DLList a -> IO [a]
-toList = foldrIO ((return .) . (:)) []
