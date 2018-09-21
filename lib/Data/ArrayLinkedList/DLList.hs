@@ -19,8 +19,8 @@
 module Data.ArrayLinkedList.DLList
   (
     DLList(),
-    Iterator(),
-    FIterator,
+    ImmutableIterator(),
+    Iterator,
     RIterator,
     unsafeFreeze,
     unsafeThaw,
@@ -100,10 +100,10 @@ unsafeThaw = return . toMutableList
 
 --------------------------------------------------------------------------------
 
-newtype Iterator j (d :: Direction) a = Iterator (j d a) deriving Eq
+newtype ImmutableIterator j (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
 
-type FIterator a = Iterator MDL.MIterator Forward a
-type RIterator a = Iterator MDL.MIterator Reverse a
+type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
+type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
 class (Default a, CStorable a, MDL.MDLListIterator j (d :: Direction) a) => DLListIterator i j d a where
   toMutableIterator   :: i j d a -> j d a
@@ -134,32 +134,32 @@ class (Default a, CStorable a, MDL.MDLListIterator j (d :: Direction) a) => DLLi
   nextItr :: i j d a -> Maybe (i j d a)
   nextItr = fmap toImmutableIterator . unsafeDupablePerformIO . MDL.nextItr . toMutableIterator
 
-instance (Default a, CStorable a) => DLListIterator Iterator MDL.MIterator Forward a  where
-  toMutableIterator :: FIterator a -> MDL.MFIterator a
-  toMutableIterator (Iterator mitr) = mitr
+instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Forward a  where
+  toMutableIterator :: Iterator a -> MDL.MIterator a
+  toMutableIterator (ImmutableIterator mitr) = mitr
 
-  toImmutableIterator :: MDL.MFIterator a -> FIterator a
-  toImmutableIterator = Iterator
+  toImmutableIterator :: MDL.MIterator a -> Iterator a
+  toImmutableIterator = ImmutableIterator
 
-instance (Default a, CStorable a) => DLListIterator Iterator MDL.MIterator Reverse a  where
+instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Reverse a  where
   toMutableIterator :: RIterator a -> MDL.MRIterator a
-  toMutableIterator (Iterator mitr) = mitr
+  toMutableIterator (ImmutableIterator mitr) = mitr
 
   toImmutableIterator :: MDL.MRIterator a -> RIterator a
-  toImmutableIterator = Iterator
+  toImmutableIterator = ImmutableIterator
 
 
-beginItr :: (Default a, CStorable a) => DLList a -> FIterator a
-beginItr = Iterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
+beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
+beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
 
 rBeginItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rBeginItr = Iterator . unsafeDupablePerformIO . MDL.rBeginItr . toMutableList
+rBeginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.rBeginItr . toMutableList
 
-endItr :: (Default a, CStorable a) => DLList a -> FIterator a
-endItr = Iterator . MDL.endItr . toMutableList
+endItr :: (Default a, CStorable a) => DLList a -> Iterator a
+endItr = ImmutableIterator . MDL.endItr . toMutableList
 
 rEndItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rEndItr = Iterator . MDL.rEndItr . toMutableList
+rEndItr = ImmutableIterator . MDL.rEndItr . toMutableList
 
 
 -- DList cannot be Foldable, due to the constrant (Default a, CStorable a)
@@ -173,7 +173,7 @@ rEndItr = Iterator . MDL.rEndItr . toMutableList
 --foldl :: (Default a, CStorable a) => (b -> a -> b) -> b -> DLList a -> b
 --foldl f z l = foldlItr f z $ beginItr l
 
-foldlMItr :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> FIterator a -> m b
+foldlMItr :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> Iterator a -> m b
 foldlMItr f z itr = maybe return (flip $ foldlMItr f) (nextItr itr) =<< f z (unsafeElement itr)
 {-
   z' <- f z $ unsafeElement itr

@@ -14,8 +14,8 @@ module Data.ArrayLinkedList.DLList.Mutable
   (
     MDLList(),
     MDLListIterator,
-    MIterator(),
-    MFIterator,
+    MutableIterator(),
+    MIterator,
     MRIterator,
     new,
     beginItr,
@@ -182,19 +182,19 @@ data MDLList a = MDLList {
   listIxStack :: !(FS.FastStack CellIndex)
   } deriving Eq
 
-data MIterator (d :: Direction) a = MIterator {
+data MutableIterator (d :: Direction) a = MutableIterator {
   itrList :: !(MDLList a),
   itrIx   :: !CellIndex
   } deriving Eq
 
-type MFIterator a = MIterator Forward a
-type MRIterator a = MIterator Reverse a
+type MIterator  a = MutableIterator Forward a
+type MRIterator a = MutableIterator Reverse a
 
 --------------------------------------------------------------------------------
 
 
 -- | obtain the cell the iterator points
---itrCell :: (Default a, CStorable a) => MIterator (d :: Direction) a -> IO (Cell a)
+--itrCell :: (Default a, CStorable a) => MutableIterator (d :: Direction) a -> IO (Cell a)
 --itrCell itr = OV.unsafeRead (listVector $ itrList itr) $ thisIx itr
 
 class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
@@ -287,27 +287,27 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 
 --------------------------------------------------------------------------------
 
-instance (Default a, CStorable a) => MDLListIterator MIterator Forward a where
-  direction :: MFIterator a -> Direction
+instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a where
+  direction :: MIterator a -> Direction
   direction _ = Forward
 
-  thisList :: MFIterator a -> MDLList a
+  thisList :: MIterator a -> MDLList a
   thisList = itrList
 
-  prevIx :: MFIterator a -> IO CellIndex
+  prevIx :: MIterator a -> IO CellIndex
   prevIx = fmap leftIx . itrCell
 
-  nextIx :: MFIterator a -> IO CellIndex
+  nextIx :: MIterator a -> IO CellIndex
   nextIx = fmap rightIx . itrCell
 
-  thisIx :: MFIterator a -> CellIndex
+  thisIx :: MIterator a -> CellIndex
   thisIx = itrIx
 
-  setIx :: CellIndex -> MFIterator a -> MFIterator a
+  setIx :: CellIndex -> MIterator a -> MIterator a
   setIx ix itr = itr { itrIx = ix }
 
-instance (Default a, CStorable a) => MDLListIterator MIterator Reverse a where
-  direction :: MIterator Reverse a -> Direction
+instance (Default a, CStorable a) => MDLListIterator MutableIterator Reverse a where
+  direction :: MutableIterator Reverse a -> Direction
   direction _ = Reverse
 
   thisList :: MRIterator a -> MDLList a
@@ -322,7 +322,7 @@ instance (Default a, CStorable a) => MDLListIterator MIterator Reverse a where
   thisIx :: MRIterator a -> CellIndex
   thisIx = itrIx
 
-  setIx :: CellIndex -> MRIterator a -> MIterator d a
+  setIx :: CellIndex -> MRIterator a -> MutableIterator d a
   setIx ix itr = itr { itrIx = ix }
 
 --------------------------------------------------------------------------------
@@ -347,21 +347,21 @@ newIx list = ifM (FS.null stack)
     vec   = listVector list
     stack = listIxStack list
 
-beginItr :: (Default a, CStorable a) => MDLList a -> IO (MIterator Forward a)
+beginItr :: (Default a, CStorable a) => MDLList a -> IO (MutableIterator Forward a)
 beginItr list = do
   sentinelCell <- OV.unsafeRead (listVector list) sentinelIx
-  return MIterator { itrList = list, itrIx = rightIx sentinelCell }
+  return MutableIterator { itrList = list, itrIx = rightIx sentinelCell }
 
-rBeginItr :: (Default a, CStorable a) => MDLList a -> IO (MIterator Reverse a)
+rBeginItr :: (Default a, CStorable a) => MDLList a -> IO (MutableIterator Reverse a)
 rBeginItr list = do
   sentinelCell <- OV.unsafeRead (listVector list) sentinelIx
-  return MIterator { itrList = list, itrIx = leftIx sentinelCell }
+  return MutableIterator { itrList = list, itrIx = leftIx sentinelCell }
 
-endItr :: (Default a, CStorable a) => MDLList a -> MIterator Forward a
-endItr list = MIterator { itrList = list, itrIx = sentinelIx }
+endItr :: (Default a, CStorable a) => MDLList a -> MutableIterator Forward a
+endItr list = MutableIterator { itrList = list, itrIx = sentinelIx }
 
-rEndItr :: (Default a, CStorable a) => MDLList a -> MIterator Reverse a
-rEndItr list = MIterator { itrList = list, itrIx = sentinelIx }
+rEndItr :: (Default a, CStorable a) => MDLList a -> MutableIterator Reverse a
+rEndItr list = MutableIterator { itrList = list, itrIx = sentinelIx }
 
 setPrevCellIx :: (Default a, CStorable a) => Direction -> CellIndex -> Cell a -> Cell a
 setPrevCellIx Forward ix cell = cell { leftIx  = ix }
