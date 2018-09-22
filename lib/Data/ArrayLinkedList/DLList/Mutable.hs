@@ -186,10 +186,6 @@ type MRIterator a = MutableIterator Reverse a
 
 --------------------------------------------------------------------------------
 
--- | obtain the cell the iterator points
---itrCell :: (Default a, CStorable a) => MutableIterator (d :: Direction) a -> IO (Cell a)
---itrCell itr = OV.unsafeRead (listVector $ itrList itr) $ thisIx itr
-
 class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   -- | primitive operations whose definition depend on the iteration direction
   direction :: i d a -> Direction
@@ -377,10 +373,10 @@ setNextCellIx Forward ix cell = cell { rightIx = ix }
 setNextCellIx Reverse ix cell = cell { leftIx  = ix }
 
 pushFront :: (Default a, CStorable a) => MDLList a -> a -> IO ()
-pushFront list e = void $ (`insert` e) =<< beginItr list
+pushFront list e = void $ flip insert e =<< beginItr list
 
 pushBack :: (Default a, CStorable a) => MDLList a -> a -> IO ()
-pushBack list e = void $ (`insert` e) =<< rBeginItr list
+pushBack list e = void $ flip insert e =<< rBeginItr list
 
 unsafePopFront :: (Default a, CStorable a) => MDLList a -> IO a
 unsafePopFront = unsafePop <=< beginItr
