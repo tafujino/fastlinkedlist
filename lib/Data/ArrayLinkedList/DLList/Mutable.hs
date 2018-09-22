@@ -7,11 +7,11 @@
 
 module Data.ArrayLinkedList.DLList.Mutable
   (
-    MDLList(),
+    MDLList,
     MDLListIterator,
-    MutableIterator(),
-    MIterator(),
-    MRIterator(),
+    MutableIterator,
+    MIterator,
+    MRIterator,
     new,
     newItr,
     newRItr,
@@ -197,7 +197,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   prevIx    :: i d a -> IO CellIndex
   nextIx    :: i d a -> IO CellIndex
   thisIx    :: i d a -> CellIndex
-  setIx     :: i d a -> CellIndex -> i d a
+  setIx     :: CellIndex -> i d a -> i d a
 
   ifValidItr :: (i d a -> IO b) -> i d a -> IO (Maybe b)
   ifValidItr f itr = runMaybeT $ do
@@ -208,10 +208,10 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   itrCell itr = OV.unsafeRead (listVector $ thisList itr) $ thisIx itr
 
   unsafePrevItr :: i d a -> IO (i d a)
-  unsafePrevItr itr = setIx itr <$> prevIx itr
+  unsafePrevItr itr = flip setIx itr <$> prevIx itr
 
   unsafeNextItr :: i d a -> IO (i d a)
-  unsafeNextItr itr = setIx itr <$> nextIx itr
+  unsafeNextItr itr = flip setIx itr <$> nextIx itr
 
   prevItr :: i d a -> IO (Maybe (i d a))
   prevItr = ifValidItr return <=< unsafePrevItr
@@ -259,7 +259,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     OV.unsafeModify vec (setNextCellIx dir ix) ix0
     OV.unsafeModify vec (setPrevCellIx dir ix) ix1
     OV.unsafeWrite vec ix $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
-    return $ setIx itr ix
+    return $ setIx ix itr
 
 -- | Delete a cell pointed by the iterator, push the cell index to the stack, and
 --   return the next iterator
@@ -273,10 +273,16 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     OV.unsafeModify vec (setNextCellIx dir ix1) ix0
     OV.unsafeModify vec (setPrevCellIx dir ix0) ix1
     FS.push (listIxStack list) $ thisIx itr
-    return $ setIx itr ix1
+    return $ setIx ix1 itr
 
   delete :: i d a -> IO (Maybe (i d a))
   delete = ifValidItr unsafeDelete
+
+  unsafePop :: i d a -> IO a
+  unsafePop itr = do
+    e <- unsafeRead itr
+    unsafeDelete itr
+    return e
 
 --------------------------------------------------------------------------------
 
@@ -296,8 +302,8 @@ instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a w
   thisIx :: MIterator a -> CellIndex
   thisIx = itrIx
 
-  setIx :: MIterator a -> CellIndex -> MIterator a
-  setIx itr ix = itr { itrIx = ix }
+  setIx :: CellIndex -> MIterator a -> MIterator a
+  setIx ix itr = itr { itrIx = ix }
 
 instance (Default a, CStorable a) => MDLListIterator MutableIterator Reverse a where
   direction :: MutableIterator Reverse a -> Direction
@@ -315,8 +321,8 @@ instance (Default a, CStorable a) => MDLListIterator MutableIterator Reverse a w
   thisIx :: MRIterator a -> CellIndex
   thisIx = itrIx
 
-  setIx :: MRIterator a -> CellIndex -> MutableIterator d a
-  setIx itr ix = itr { itrIx = ix }
+  setIx :: CellIndex -> MRIterator a -> MutableIterator d a
+  setIx ix itr = itr { itrIx = ix }
 
 --------------------------------------------------------------------------------
 
@@ -375,12 +381,6 @@ pushFront list e = void $ (`insert` e) =<< beginItr list
 
 pushBack :: (Default a, CStorable a) => MDLList a -> a -> IO ()
 pushBack list e = void $ (`insert` e) =<< rBeginItr list
-
-unsafePop :: (Default a, CStorable a, MDLListIterator i d a) => i d a -> IO a
-unsafePop itr = do
-  e <- unsafeRead itr
-  unsafeDelete itr
-  return e
 
 unsafePopFront :: (Default a, CStorable a) => MDLList a -> IO a
 unsafePopFront = unsafePop <=< beginItr
