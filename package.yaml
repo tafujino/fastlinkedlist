@@ -31,7 +31,6 @@ library:
   exposed-modules:
      - Data.OffHeapVector
      - Data.FastStack
-     - Data.ArrayLinkedList.SLList
      - Data.ArrayLinkedList.DLList
      - Data.ArrayLinkedList.DLList.Ix     
      - Data.ArrayLinkedList.DLList.Mutable     

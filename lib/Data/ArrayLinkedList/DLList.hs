@@ -6,14 +6,13 @@
 
 module Data.ArrayLinkedList.DLList
   (
-    DLList(..),
---    ImmutableIterator(..),
---    DLListIterator(..),
-    Iterator(),
-    RIterator(),
+    DLList,
+    Iterator,
+    RIterator,
     unsafeFreeze,
     unsafeThaw,
     newItr,
+    newRItr,
     thisIx,
     thisList,
     element,
@@ -31,10 +30,6 @@ module Data.ArrayLinkedList.DLList
     foldlM,
     foldM,
     foldrM,
---    foldlItr,
---    foldrItr,
---    foldlMItr,
---    foldrMItr,
     forM_,
     mapM_,
     toList,
@@ -81,16 +76,16 @@ unsafeThaw = return . toMutableList
 --------------------------------------------------------------------------------
 
 -- | Immutable iterator wraps mutable iterator (of the same direction)
-newtype ImmutableIterator j (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
+newtype ImmutableIterator (j :: Direction -> * -> *)  (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
 
 type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
 type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
-class (Default a, CStorable a, MDL.MDLListIterator j (d :: Direction) a) => DLListIterator i j d a where
+class (Default a,
+       CStorable a,
+       MDL.MDLListIterator (j :: Direction -> * -> *)  (d :: Direction) a) => DLListIterator i j d a where
   toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
-
-  newItr :: DLList a -> CellIndex -> i j d a
 
   thisIx :: i j d a -> CellIndex
   thisIx = MDL.thisIx . toMutableItr
@@ -117,6 +112,8 @@ class (Default a, CStorable a, MDL.MDLListIterator j (d :: Direction) a) => DLLi
   nextItr :: i j d a -> Maybe (i j d a)
   nextItr = fmap toImmutableItr . unsafeDupablePerformIO . MDL.nextItr . toMutableItr
 
+--------------------------------------------------------------------------------
+
 instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Forward a where
   toMutableItr :: Iterator a -> MDL.MIterator a
   toMutableItr (ImmutableIterator mitr) = mitr
@@ -124,8 +121,6 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
   toImmutableItr :: MDL.MIterator a -> Iterator a
   toImmutableItr = ImmutableIterator
 
-  newItr :: DLList a -> CellIndex -> Iterator a
-  newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
 
 instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Reverse a where
   toMutableItr :: RIterator a -> MDL.MRIterator a
@@ -134,8 +129,13 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
   toImmutableItr :: MDL.MRIterator a -> RIterator a
   toImmutableItr = ImmutableIterator
 
-  newItr :: DLList a -> CellIndex -> RIterator a
-  newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+--------------------------------------------------------------------------------
+
+newItr :: (Default a, CStorable a) => DLList a -> CellIndex -> Iterator a
+newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+
+newRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
+newRItr list ix = ImmutableIterator (MDL.newRItr (toMutableList list) ix)
 
 beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
 beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
@@ -194,4 +194,3 @@ toList l = foldr (:) [] l
 
 toIxList :: (Default a, CStorable a) => DLList a -> [CellIndex]
 toIxList = foldrItr ((:) . thisIx) [] . rBeginItr
-
