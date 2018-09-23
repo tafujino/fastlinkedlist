@@ -53,9 +53,11 @@ import qualified Data.ArrayLinkedList.DLList.Mutable as MDL
 import Data.ArrayLinkedList.DLList.IteratorDirection
 import Data.ArrayLinkedList.DLList.Ix
 import Data.Default
+import Data.Proxy
 import Foreign.CStorable
 import GHC.Generics
 import System.IO.Unsafe
+--import Data.Functor.Contravariant
 
 newtype DLList a = DLList (MDL.MDLList a)
 
@@ -81,6 +83,43 @@ newtype ImmutableIterator (j :: Direction -> * -> *) (d :: Direction) a = Immuta
 type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
 type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
+--------------------------------------------------------------------------------
+
+class DLListMorphism a b where
+  morph :: a -> b
+
+instance DLListMorphism a a where
+  morph = id
+
+instance (DLListMorphism a b) => DLListMorphism (Maybe a) (Maybe b) where
+  morph = fmap morph
+
+instance (DLListMorphism a b) => DLListMorphism (c -> a) (c -> b) where
+  morph = fmap morph
+
+--instance (DLListMorphism a b) => DLListMorphism (a -> c) (b -> c) where
+--  morph = contramap morph
+
+instance (DLListMorphism a b) => DLListMorphism (IO a) b where
+  morph = morph . unsafeDupablePerformIO
+
+instance (Default a, CStorable a) => DLListMorphism (DLList a) (MDL.MDLList a) where
+  morph = toMutableList
+
+instance (Default a, CStorable a) => DLListMorphism (MDL.MDLList a) (DLList a) where
+  morph = toImmutableList
+
+instance (Default a, CStorable a, DLListIterator i j d a, MDL.MDLListIterator j d a) => DLListMorphism (i j d a) (j d a) where
+  morph = toMutableItr
+
+instance (Default a, CStorable a, DLListIterator i j d a, MDL.MDLListIterator j d a) => DLListMorphism (j d a) (i j d a) where
+  morph = toImmutableItr
+
+deriveMorph :: (DLListMorphism a b, DLListMorphism b' a') => Proxy (a, b) -> (b -> b') -> (a -> a')
+deriveMorph _ f = morph . f . morph
+
+--------------------------------------------------------------------------------
+
 class (Default a,
        CStorable a,
        MDL.MDLListIterator (j :: Direction -> * -> *)  (d :: Direction) a
@@ -88,30 +127,33 @@ class (Default a,
   toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
 
+  itrMorphProxy :: Proxy (i j d a, j d a)
+  itrMorphProxy = Proxy
+
   thisIx :: i j d a -> CellIndex
-  thisIx = MDL.thisIx . toMutableItr
+  thisIx = deriveMorph itrMorphProxy MDL.thisIx
 
   thisList :: i j d a -> DLList a
-  thisList = DLList . MDL.thisList . toMutableItr
+  thisList = deriveMorph itrMorphProxy MDL.thisList
 
   unsafeElement :: i j d a -> a
-  unsafeElement = unsafeDupablePerformIO . MDL.unsafeRead . toMutableItr
+  unsafeElement = deriveMorph itrMorphProxy MDL.unsafeRead
 
   -- | Obtain the value of the cell pointed by the iterator
   element :: i j d a -> a
-  element = unsafeDupablePerformIO . MDL.read . toMutableItr
+  element = deriveMorph itrMorphProxy MDL.read
 
   unsafePrevItr :: i j d a -> i j d a
-  unsafePrevItr = toImmutableItr . unsafeDupablePerformIO . MDL.unsafePrevItr . toMutableItr
+  unsafePrevItr = deriveMorph itrMorphProxy MDL.unsafePrevItr
 
   prevItr :: i j d a -> Maybe (i j d a)
-  prevItr = fmap toImmutableItr . unsafeDupablePerformIO . MDL.prevItr . toMutableItr
+  prevItr = deriveMorph itrMorphProxy MDL.prevItr
 
   unsafeNextItr :: i j d a -> i j d a
-  unsafeNextItr = toImmutableItr . unsafeDupablePerformIO . MDL.unsafeNextItr . toMutableItr
+  unsafeNextItr = deriveMorph itrMorphProxy MDL.unsafeNextItr
 
   nextItr :: i j d a -> Maybe (i j d a)
-  nextItr = fmap toImmutableItr . unsafeDupablePerformIO . MDL.nextItr . toMutableItr
+  nextItr = deriveMorph itrMorphProxy MDL.nextItr
 
 --------------------------------------------------------------------------------
 
@@ -132,24 +174,26 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
 
 --------------------------------------------------------------------------------
 
+listMorphProxy :: Proxy (DLList a, MDL.MDLList a)
+listMorphProxy = Proxy
+
 newItr :: (Default a, CStorable a) => DLList a -> CellIndex -> Iterator a
-newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+newItr = deriveMorph listMorphProxy MDL.newItr
 
 newRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
-newRItr list ix = ImmutableIterator (MDL.newRItr (toMutableList list) ix)
+newRItr = deriveMorph listMorphProxy MDL.newRItr
 
 beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
-beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
+beginItr = deriveMorph listMorphProxy MDL.beginItr
 
 rBeginItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rBeginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.rBeginItr . toMutableList
+rBeginItr = deriveMorph listMorphProxy MDL.rBeginItr
 
 endItr :: (Default a, CStorable a) => DLList a -> Iterator a
-endItr = ImmutableIterator . MDL.endItr . toMutableList
+endItr = deriveMorph listMorphProxy MDL.endItr
 
 rEndItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rEndItr = ImmutableIterator . MDL.rEndItr . toMutableList
-
+rEndItr = deriveMorph listMorphProxy MDL.rEndItr
 
 -- DList cannot be Foldable, becasue the type its element is restricted to (Default a, CStorable a)
 
