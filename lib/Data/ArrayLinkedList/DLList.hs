@@ -76,14 +76,15 @@ unsafeThaw = return . toMutableList
 --------------------------------------------------------------------------------
 
 -- | Immutable iterator wraps mutable iterator (of the same direction)
-newtype ImmutableIterator (j :: Direction -> * -> *)  (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
+newtype ImmutableIterator (j :: Direction -> * -> *) (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
 
 type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
 type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
 class (Default a,
        CStorable a,
-       MDL.MDLListIterator (j :: Direction -> * -> *)  (d :: Direction) a) => DLListIterator i j d a where
+       MDL.MDLListIterator (j :: Direction -> * -> *)  (d :: Direction) a
+      ) => DLListIterator i j d a where
   toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
 
@@ -158,7 +159,7 @@ foldlMItr :: (Default a, CStorable a, Monad m) => (b -> Iterator a -> m b) -> b 
 foldlMItr f z itr = maybe return (flip $ foldlMItr f) (nextItr itr) =<< f z itr
 
 foldlM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
-foldlM f z list = foldlMItr (\x -> f x . unsafeElement) z $ beginItr list
+foldlM f z l = foldlMItr (\x -> f x . unsafeElement) z $ beginItr l
 
 foldM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
 foldM = foldlM
@@ -167,7 +168,7 @@ foldrMItr :: (Default a, CStorable a, Monad m) => (RIterator a -> b -> m b) -> b
 foldrMItr f z itr = maybe return (flip $ foldrMItr f) (nextItr itr) =<< f itr z
 
 foldrM :: (Default a, CStorable a, Monad m) => (a -> b -> m b) -> b -> DLList a -> m b
-foldrM f z list = foldrMItr (f . unsafeElement)  z $ rBeginItr list
+foldrM f z l = foldrMItr (f . unsafeElement) z $ rBeginItr l
 
 foldl :: (Default a, CStorable a) => (b -> a -> b) -> b -> DLList a -> b
 foldl f z l = runIdentity $ foldlM ((return . ) . f) z l
@@ -182,7 +183,7 @@ foldrItr :: (Default a, CStorable a) => (RIterator a -> b -> b) -> b -> RIterato
 foldrItr f z itr = runIdentity $ foldrMItr ((return . ) . f) z itr
 
 mapM_ :: (Default a, CStorable a, Monad m) => (a -> m b) -> DLList a -> m ()
-mapM_ f l = void $ foldlM (const $ void . f) () l
+mapM_ f l = foldM (const $ void . f) () l
 
 forM_ :: (Default a, CStorable a, Monad m) => DLList a -> (a -> m b) -> m ()
 forM_ = flip mapM_

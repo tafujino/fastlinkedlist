@@ -20,12 +20,8 @@ module Data.FastStack (
 where
 
 import Prelude hiding (length, null)
-import Foreign.ForeignPtr
-import Foreign.Ptr
 import Foreign.Storable
 import qualified Data.OffHeapVector as OV
-import Control.Monad
-import Data.IORef
 
 {-
  Cells:
@@ -54,7 +50,7 @@ import Data.IORef
 newtype FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
 
 new :: Storable a => Int -> IO (FastStack a)
-new cap = FastStack <$> OV.new cap
+new = fmap FastStack . OV.new
 
 length :: Storable a => FastStack a -> IO Int
 length (FastStack ov) = OV.length ov
@@ -67,9 +63,3 @@ push (FastStack ov) = OV.pushBack ov
 
 pop :: Storable a => FastStack a -> IO a
 pop (FastStack ov) = OV.popBack ov
-
-  
-
-
-  
-  

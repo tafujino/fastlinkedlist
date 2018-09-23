@@ -128,7 +128,7 @@ write :: Storable a => OffHeapVector a -> VecIx -> a -> IO ()
 write ov ix e = checkBoundary ov ix >> unsafeWrite ov ix e
 
 unsafeModify :: Storable a => OffHeapVector a -> (a -> a) -> VecIx -> IO ()
-unsafeModify ov f ix = unsafeWrite ov ix =<< f <$> unsafeRead ov ix
+unsafeModify ov f ix = unsafeWrite ov ix . f =<< unsafeRead ov ix
 
 modify :: Storable a => OffHeapVector a -> (a -> a) -> VecIx -> IO ()
 modify ov f ix = checkBoundary ov ix >> unsafeModify ov f ix
