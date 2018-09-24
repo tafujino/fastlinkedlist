@@ -85,22 +85,22 @@ type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a
 
 --------------------------------------------------------------------------------
 
-class DLListMorphism a b where
-  morph :: a -> b
+class DLListMorphism t u where
+  morph :: t -> u
 
-instance DLListMorphism a a where
+instance DLListMorphism t t where
   morph = id
 
-instance (DLListMorphism a b) => DLListMorphism (Maybe a) (Maybe b) where
+instance (DLListMorphism t u) => DLListMorphism (Maybe t) (Maybe u) where
   morph = fmap morph
 
-instance (DLListMorphism a b) => DLListMorphism (c -> a) (c -> b) where
+instance (DLListMorphism t u) => DLListMorphism (s -> t) (s -> u) where
   morph = fmap morph
 
 --instance (DLListMorphism a b) => DLListMorphism (a -> c) (b -> c) where
 --  morph = contramap morph
 
-instance (DLListMorphism a b) => DLListMorphism (IO a) b where
+instance (DLListMorphism t u) => DLListMorphism (IO t) u where
   morph = morph . unsafeDupablePerformIO
 
 instance (Default a, CStorable a) => DLListMorphism (DLList a) (MDL.MDLList a) where
@@ -115,8 +115,19 @@ instance (Default a, CStorable a, DLListIterator i j d a, MDL.MDLListIterator j 
 instance (Default a, CStorable a, DLListIterator i j d a, MDL.MDLListIterator j d a) => DLListMorphism (j d a) (i j d a) where
   morph = toImmutableItr
 
-deriveMorph :: (DLListMorphism a b, DLListMorphism b' a') => Proxy (a, b) -> (b -> b') -> (a -> a')
-deriveMorph _ f = morph . f . morph
+deriveMorph :: (DLListMorphism t u, DLListMorphism u' t') => (u -> u') -> (t -> t')
+deriveMorph f = morph . f . morph
+
+deriveItrMorph :: (Default a,
+                   CStorable a,
+                   DLListMorphism u t,
+                   DLListIterator i j d a,
+                   MDL.MDLListIterator j d a
+                  ) => (j d a -> u) -> (i j d a -> t)
+deriveItrMorph = deriveMorph
+
+deriveListMorph :: (Default a, CStorable a, DLListMorphism u t) => (MDL.MDLList a -> u) -> (DLList a -> t)
+deriveListMorph = deriveMorph
 
 --------------------------------------------------------------------------------
 
@@ -127,33 +138,30 @@ class (Default a,
   toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
 
-  itrMorphProxy :: Proxy (i j d a, j d a)
-  itrMorphProxy = Proxy
-
   thisIx :: i j d a -> CellIndex
-  thisIx = deriveMorph itrMorphProxy MDL.thisIx
+  thisIx = deriveItrMorph MDL.thisIx
 
   thisList :: i j d a -> DLList a
-  thisList = deriveMorph itrMorphProxy MDL.thisList
+  thisList = deriveItrMorph MDL.thisList
 
   unsafeElement :: i j d a -> a
-  unsafeElement = deriveMorph itrMorphProxy MDL.unsafeRead
+  unsafeElement = deriveItrMorph MDL.unsafeRead
 
   -- | Obtain the value of the cell pointed by the iterator
   element :: i j d a -> a
-  element = deriveMorph itrMorphProxy MDL.read
+  element = deriveItrMorph MDL.read
 
   unsafePrevItr :: i j d a -> i j d a
-  unsafePrevItr = deriveMorph itrMorphProxy MDL.unsafePrevItr
+  unsafePrevItr = deriveItrMorph MDL.unsafePrevItr
 
   prevItr :: i j d a -> Maybe (i j d a)
-  prevItr = deriveMorph itrMorphProxy MDL.prevItr
+  prevItr = deriveItrMorph MDL.prevItr
 
   unsafeNextItr :: i j d a -> i j d a
-  unsafeNextItr = deriveMorph itrMorphProxy MDL.unsafeNextItr
+  unsafeNextItr = deriveItrMorph MDL.unsafeNextItr
 
   nextItr :: i j d a -> Maybe (i j d a)
-  nextItr = deriveMorph itrMorphProxy MDL.nextItr
+  nextItr = deriveItrMorph MDL.nextItr
 
 --------------------------------------------------------------------------------
 
@@ -174,26 +182,23 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
 
 --------------------------------------------------------------------------------
 
-listMorphProxy :: Proxy (DLList a, MDL.MDLList a)
-listMorphProxy = Proxy
-
 newItr :: (Default a, CStorable a) => DLList a -> CellIndex -> Iterator a
-newItr = deriveMorph listMorphProxy MDL.newItr
+newItr = deriveListMorph MDL.newItr
 
 newRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
-newRItr = deriveMorph listMorphProxy MDL.newRItr
+newRItr = deriveListMorph MDL.newRItr
 
 beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
-beginItr = deriveMorph listMorphProxy MDL.beginItr
+beginItr = deriveListMorph MDL.beginItr
 
 rBeginItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rBeginItr = deriveMorph listMorphProxy MDL.rBeginItr
+rBeginItr = deriveListMorph MDL.rBeginItr
 
 endItr :: (Default a, CStorable a) => DLList a -> Iterator a
-endItr = deriveMorph listMorphProxy MDL.endItr
+endItr = deriveListMorph MDL.endItr
 
 rEndItr :: (Default a, CStorable a) => DLList a -> RIterator a
-rEndItr = deriveMorph listMorphProxy MDL.rEndItr
+rEndItr = deriveListMorph MDL.rEndItr
 
 -- DList cannot be Foldable, becasue the type its element is restricted to (Default a, CStorable a)
 
