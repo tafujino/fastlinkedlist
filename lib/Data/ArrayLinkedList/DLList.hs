@@ -183,13 +183,13 @@ foldrItr :: (Default a, CStorable a) => (RIterator a -> b -> b) -> b -> RIterato
 foldrItr f z itr = runIdentity $ foldrMItr ((return . ) . f) z itr
 
 mapM_ :: (Default a, CStorable a, Monad m) => (a -> m b) -> DLList a -> m ()
-mapM_ f l = foldM (const $ void . f) () l
+mapM_ f = foldM (const $ void . f) ()
 
 forM_ :: (Default a, CStorable a, Monad m) => DLList a -> (a -> m b) -> m ()
 forM_ = flip mapM_
 
 toList :: (Default a, CStorable a) => DLList a -> [a]
-toList l = foldr (:) [] l
+toList = foldr (:) []
 
 -- to do: implement fromList
 

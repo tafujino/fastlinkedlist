@@ -10,7 +10,7 @@ foreign memory. The features are
 
 -}
 module Data.FastStack (
-  FastStack(),
+  FastStack,
   new,
   length,
   null,

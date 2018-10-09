@@ -11,7 +11,7 @@ foreign memory. The features are
 -}
 
 module Data.OffHeapVector (
-  OffHeapVector(),
+  OffHeapVector,
   new,
   null,
   length,
@@ -60,9 +60,6 @@ data OffHeapVector a = OffHeapVector {
   sizeRef :: !(IORef VecSize)
   } deriving Eq
 
-length :: Storable a => OffHeapVector a -> IO VecSize
-length = readIORef . sizeRef
-
 -- |
 -- >>> v <- new 10 :: IO (OffHeapVector Char)
 -- >>> null v
@@ -80,10 +77,6 @@ length = readIORef . sizeRef
 -- >>> read v 1
 -- 'd'
 
-
-null :: Storable a => OffHeapVector a -> IO Bool
-null = fmap (== 0) . length
-
 new :: Storable a => VecSize -> IO (OffHeapVector a)
 new cap = do
   v       <- mallocForeignPtrArray cap
@@ -91,6 +84,12 @@ new cap = do
   capRef  <- newIORef cap
   sizeRef <- newIORef 0
   return $ OffHeapVector vRef capRef sizeRef
+
+length :: Storable a => OffHeapVector a -> IO VecSize
+length = readIORef . sizeRef
+
+null :: Storable a => OffHeapVector a -> IO Bool
+null = fmap (== 0) . length
 
 expand :: Storable a => OffHeapVector a -> VecSize -> IO ()
 expand ov@(OffHeapVector vRef capRef sizeRef) deltaCap = do

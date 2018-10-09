@@ -66,19 +66,21 @@ import Foreign.CStorable
 import Foreign.Storable
 import GHC.Generics
 
+-- | $setup
+-- >>> import Data.ArrayLinkedList.DLList
+
 -- |
--- >>> list <- Data.ArrayLinkedList.DLList.Mutable.new 10 :: IO (Data.ArrayLinkedList.DLList.Mutable.MDLList Int)
--- >>> pushFront list 1
--- >>> pushFront list 2
--- >>> pushFront list 3
--- >>> toList list
+-- >>> mList <- new 10 :: IO (MDLList Int)
+-- >>> iList <- Data.ArrayLinkedList.DLList.unsafeFreeze mList
+-- >>> pushFront mList 1
+-- >>> pushFront mList 2
+-- >>> pushFront mList 3
+-- >>> Data.ArrayLinkedList.DLList.unsafeFreeze.toList iList
 -- [3,2,1]
--- >>> forIO_ list print
+-- >>> forM_ list print
 -- 3
 -- 2
 -- 1
--- >>> foldl (+) 0 list
--- 6
 -- >>> pushBack list 0
 -- >>> toList list
 -- [3,2,1,0]
@@ -86,17 +88,17 @@ import GHC.Generics
 -- Just 3
 -- >>> toList list
 -- [2,1,0]
--- >>> i0 <- getBeginItr list
--- >>> Just i1 <- getNextItr i0
+-- >>> i0 <- beginItr list
+-- >>> Just i1 <- nextItr i0
 -- >>> insert i1 100
 -- >>> toList list
 -- [2,100,1,0]
--- >>> ri0 <- getRBeginItr list
--- >>> Just ri1 <- rGetNextItr ri0
--- >>> Just ri2 <- rDelete ri1
+-- >>> ri0 <- rBeginItr list
+-- >>> Just ri1 <- nextItr ri0
+-- >>> Just ri2 <- delete ri1
 -- >>> toList list
 -- [2,100,0]
--- >>> rInsert ri2 (-1)
+-- >>> insert ri2 (-1)
 -- >>> toList list
 -- [2,100,-1,0]
 
@@ -104,16 +106,12 @@ import GHC.Generics
 -- >>> list <- Data.ArrayLinkedList.DLList.Mutable.new 10 :: IO (Data.ArrayLinkedList.DLList.Mutable.MDLList Int)
 -- >>> toList list
 -- []
--- >>> forIO_ list print
--- >>> foldl (+) 0 list
--- 0
--- >>> i0 <- getBeginItr list
--- >>> unsafeRead i0
--- Nothing
--- >>> mi1 <- getNextItr i0
+-- >>> for list print
+-- >>> i0 <- beginItr list
+-- >>> mi1 <- nextItr i0
 -- >>> maybe Nothing (const $ Just "Iterator") mi1
 -- Nothing
--- >>> mi2 <- getPrevItr i0
+-- >>> mi2 <- prevItr i0
 -- >>> maybe Nothing (const $ Just "Iterator") mi2
 -- Nothing
 -- >>> popFront list
@@ -135,17 +133,17 @@ import GHC.Generics
 -- 3
 -- >>> toList list
 -- [2,1,0]
--- >>> i0 <- getBeginItr list
--- >>> i1 <- unsafeGetNextItr i0
+-- >>> i0 <- beginItr list
+-- >>> i1 <- unsafeNextItr i0
 -- >>> insert i1 100
 -- >>> toList list
 -- [2,100,1,0]
--- >>> ri0 <- getRBeginItr list
--- >>> ri1 <- unsafeRGetNextItr ri0
--- >>> ri2 <- unsafeRDelete ri1
+-- >>> ri0 <- rBeginItr list
+-- >>> ri1 <- unsafeNextItr ri0
+-- >>> ri2 <- unsafeDelete ri1
 -- >>> toList list
 -- [2,100,0]
--- >>> rInsert ri2 (-1)
+-- >>> insert ri2 (-1)
 -- >>> toList list
 -- [2,100,-1,0]
 
@@ -243,7 +241,8 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     when (thisIx itr /= sentinelIx) $ error "cannot modify the sentinel cell"
     unsafeModify itr f
 
-  -- | Insert an element just before where the iterator points and retun the iterator to the inserted cell
+  -- | Insert an element just before where the iterator points
+  --   and retun the iterator to the inserted cell
   insert :: i d a -> a -> IO (i d a)
   insert itr e = do
     let list = thisList itr
@@ -257,8 +256,8 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     OV.unsafeWrite vec ix $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     return $ setIx ix itr
 
--- | Delete a cell pointed by the iterator, push the cell index to the stack, and
---   return the next iterator
+  -- | Delete a cell pointed by the iterator, push the cell index to the stack, and
+  --   return the next iterator
   unsafeDelete :: i d a -> IO (i d a)
   unsafeDelete itr = do
     let list = thisList itr

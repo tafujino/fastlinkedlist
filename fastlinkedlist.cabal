@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e42cb07ab8f3b4190e9c4d636b1ca601151818ec905901d9ea43d055efc9f485
+-- hash: 2f54312a4cb93174dd7e47ca81dc70ee4457a39042ecda813cdc091f046b3877
 
 name:           fastlinkedlist
 version:        0.1.0.0
@@ -27,6 +27,7 @@ library
       Data.ArrayLinkedList.DLList.Mutable
   other-modules:
       Data.ArrayLinkedList.DLList.IteratorDirection
+      Data.OffHeapVector.Mutable
       Paths_fastlinkedlist
   hs-source-dirs:
       lib
@@ -34,7 +35,6 @@ library
       base >=4.7 && <5
     , c-storable-deriving
     , data-default
-    , dlist
     , doctest
     , extra
     , mtl
@@ -49,13 +49,14 @@ test-suite test
       Paths_fastlinkedlist
   hs-source-dirs:
       test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , c-storable-deriving
     , data-default
-    , dlist
     , doctest
     , extra
+    , fastlinkedlist
     , mtl
     , transformers
     , vector

@@ -1,5 +1,4 @@
 module Data.ArrayLinkedList.DLList.Ix
-
 where
 
 type CellIndex = Int
