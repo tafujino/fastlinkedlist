@@ -218,7 +218,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 
   read :: i d a -> IO a
   read itr = do
-    when (thisIx itr /= sentinelIx) $ error "cannot read the sentinel cell"
+    when (thisIx itr == sentinelIx) $ error "cannot read the sentinel cell"
     unsafeRead itr
 
   unsafeWrite :: i d a -> a -> IO ()
@@ -230,7 +230,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 
   write :: i d a -> a -> IO ()
   write itr e = do
-    when (thisIx itr /= sentinelIx) $ error "cannot write to the sentinel cell"
+    when (thisIx itr == sentinelIx) $ error "cannot write to the sentinel cell"
     unsafeWrite itr e
 
   unsafeModify :: i d a -> (a -> a) -> IO ()
