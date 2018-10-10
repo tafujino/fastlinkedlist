@@ -18,7 +18,6 @@ module Data.ArrayLinkedList.DLList
     thisList,
     element,
     unsafeElement,
-    unsafeElementByIx,
     beginItr,
     rBeginItr,
     endItr,
@@ -140,9 +139,6 @@ unsafeNewItr list ix = ImmutableIterator (MDL.unsafeNewItr (toMutableList list) 
 
 unsafeNewRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
 unsafeNewRItr list ix = ImmutableIterator (MDL.unsafeNewRItr (toMutableList list) ix)
-
-unsafeElementByIx :: (Default a, CStorable a) => DLList a -> CellIndex -> a
-unsafeElementByIx = (unsafeElement .) . unsafeNewItr
 
 beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
 beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList
