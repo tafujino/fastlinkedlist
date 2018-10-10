@@ -59,7 +59,7 @@ import Foreign.CStorable
 import GHC.Generics
 import System.IO.Unsafe
 
-newtype DLList a = DLList (MDL.MDLList a)
+newtype DLList a = DLList (MDL.MDLList a) deriving NFData
 
 toMutableList :: (Default a, CStorable a) => DLList a -> MDL.MDLList a
 toMutableList (DLList mdl) = mdl
