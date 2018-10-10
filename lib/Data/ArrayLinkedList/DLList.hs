@@ -11,12 +11,13 @@ module Data.ArrayLinkedList.DLList
     RIterator,
     unsafeFreeze,
     unsafeThaw,
-    newItr,
-    newRItr,
+    unsafeNewItr,
+    unsafeNewRItr,
     thisIx,
     thisList,
     element,
     unsafeElement,
+    unsafeElementByIx,
     beginItr,
     rBeginItr,
     endItr,
@@ -132,11 +133,14 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
 
 --------------------------------------------------------------------------------
 
-newItr :: (Default a, CStorable a) => DLList a -> CellIndex -> Iterator a
-newItr list ix = ImmutableIterator (MDL.newItr (toMutableList list) ix)
+unsafeNewItr :: (Default a, CStorable a) => DLList a -> CellIndex -> Iterator a
+unsafeNewItr list ix = ImmutableIterator (MDL.unsafeNewItr (toMutableList list) ix)
 
-newRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
-newRItr list ix = ImmutableIterator (MDL.newRItr (toMutableList list) ix)
+unsafeNewRItr :: (Default a, CStorable a) => DLList a -> CellIndex -> RIterator a
+unsafeNewRItr list ix = ImmutableIterator (MDL.unsafeNewRItr (toMutableList list) ix)
+
+unsafeElementByIx :: (Default a, CStorable a) => DLList a -> CellIndex -> a
+unsafeElementByIx = (unsafeElement .) . unsafeNewItr
 
 beginItr :: (Default a, CStorable a) => DLList a -> Iterator a
 beginItr = ImmutableIterator . unsafeDupablePerformIO . MDL.beginItr . toMutableList

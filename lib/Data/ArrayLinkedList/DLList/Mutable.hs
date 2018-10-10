@@ -13,8 +13,8 @@ module Data.ArrayLinkedList.DLList.Mutable
     MIterator,
     MRIterator,
     new,
-    newItr,
-    newRItr,
+    unsafeNewItr,
+    unsafeNewRItr,
     beginItr,
     rBeginItr,
     endItr,
@@ -31,6 +31,9 @@ module Data.ArrayLinkedList.DLList.Mutable
     modify,
     unsafeModify,
     insert,
+    unsafeReadByIx,
+    unsafeWriteByIx,
+    unsafeModifyByIx,
     unsafeDelete,
     delete,
     pushFront,
@@ -330,11 +333,20 @@ new initialCapacity = do
                          cellValue = def }
   return $ MDLList vec stack
 
-newItr :: MDLList a -> CellIndex -> MIterator a
-newItr list ix = MutableIterator { itrList = list, itrIx = ix }
+unsafeNewItr :: (Default a, CStorable a) => MDLList a -> CellIndex -> MIterator a
+unsafeNewItr list ix = MutableIterator { itrList = list, itrIx = ix }
 
-newRItr :: MDLList a -> CellIndex -> MRIterator a
-newRItr list ix = MutableIterator { itrList = list, itrIx = ix }
+unsafeNewRItr :: (Default a, CStorable a) => MDLList a -> CellIndex -> MRIterator a
+unsafeNewRItr list ix = MutableIterator { itrList = list, itrIx = ix }
+
+unsafeReadByIx :: (Default a, CStorable a) => MDLList a -> CellIndex -> IO a
+unsafeReadByIx = (unsafeRead . ) . unsafeNewItr
+
+unsafeWriteByIx :: (Default a, CStorable a) => MDLList a -> CellIndex -> a -> IO ()
+unsafeWriteByIx = (unsafeWrite . ) . unsafeNewItr
+
+unsafeModifyByIx :: (Default a, CStorable a) => MDLList a -> CellIndex -> (a -> a) -> IO ()
+unsafeModifyByIx = (unsafeModify . ) . unsafeNewItr
 
 -- | obtain an index of a cell, either from a stack or by allocating a new cell
 newIx :: (Default a, CStorable a) => MDLList a -> IO CellIndex
