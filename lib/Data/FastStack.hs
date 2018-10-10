@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-
 Module : Data.FastStack
 Description : A very fast stack using foreign memory.
@@ -20,6 +21,7 @@ module Data.FastStack (
 where
 
 import Prelude hiding (length, null)
+import Control.DeepSeq
 import Foreign.Storable
 import qualified Data.OffHeapVector as OV
 
@@ -47,7 +49,7 @@ import qualified Data.OffHeapVector as OV
           topIndex : an index integer is stored if a new cell is deallocated.
 -}
 
-newtype FastStack a = FastStack (OV.OffHeapVector a) deriving Eq
+newtype FastStack a = FastStack (OV.OffHeapVector a) deriving (Eq, NFData)
 
 new :: Storable a => Int -> IO (FastStack a)
 new = fmap FastStack . OV.new

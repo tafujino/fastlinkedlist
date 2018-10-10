@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-
 Module : Data.OffHeapVector
 Description : A very fast off-heap vector using foreign memory.
@@ -28,9 +30,11 @@ module Data.OffHeapVector (
 where
 
 import Prelude hiding (length, null, read)
+import Control.DeepSeq
 import Control.Monad.Extra
 import Data.IORef
 import qualified Data.Vector.Storable.Mutable as SMV
+import GHC.Generics
 import Foreign.ForeignPtr
 import Foreign.Storable
 import Text.Printf (printf)
@@ -58,7 +62,7 @@ data OffHeapVector a = OffHeapVector {
   vRef    :: !(IORef (ForeignPtr a)),
   capRef  :: !(IORef VecSize),
   sizeRef :: !(IORef VecSize)
-  } deriving Eq
+  } deriving (Eq, Generic, NFData)
 
 -- |
 -- >>> v <- new 10 :: IO (OffHeapVector Char)

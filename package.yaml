@@ -16,6 +16,7 @@ dependencies:
   - vector
   - c-storable-deriving
   - data-default
+  - deepseq
   - doctest
   - extra
   - mtl

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -48,6 +49,7 @@ A dummy node is introduced for speed.
 -}
 
 import Prelude hiding (foldl, foldr, mapM_)
+import Control.DeepSeq
 import Control.Monad hiding (foldM, forM_, mapM_)
 import Control.Monad.Identity hiding (foldM, forM_, mapM_)
 import qualified Data.ArrayLinkedList.DLList.Mutable as MDL
@@ -77,7 +79,7 @@ unsafeThaw = return . toMutableList
 --------------------------------------------------------------------------------
 
 -- | Immutable iterator wraps mutable iterator (of the same direction)
-newtype ImmutableIterator (j :: Direction -> * -> *) (d :: Direction) a = ImmutableIterator (j d a) deriving Eq
+newtype ImmutableIterator (j :: Direction -> * -> *) (d :: Direction) a = ImmutableIterator (j d a) deriving (Eq, NFData)
 
 type Iterator  a = ImmutableIterator MDL.MutableIterator Forward a
 type RIterator a = ImmutableIterator MDL.MutableIterator Reverse a

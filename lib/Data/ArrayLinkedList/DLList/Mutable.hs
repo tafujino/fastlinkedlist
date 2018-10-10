@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -55,6 +56,7 @@ A dummy node is introduced for speed.
 -}
 
 import Prelude hiding (read)
+import Control.DeepSeq
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.Trans.Maybe
@@ -175,12 +177,12 @@ instance CStorable a => Storable (Cell a) where
 data MDLList a = MDLList {
   listVector  :: !(OV.OffHeapVector (Cell a)),
   listIxStack :: !(FS.FastStack CellIndex)
-  } deriving Eq
+  } deriving (Eq, Generic, NFData)
 
 data MutableIterator (d :: Direction) a = MutableIterator {
   itrList :: !(MDLList a),
   itrIx   :: !CellIndex
-  } deriving Eq
+  } deriving (Eq, Generic, NFData)
 
 type MIterator  a = MutableIterator Forward a
 type MRIterator a = MutableIterator Reverse a
