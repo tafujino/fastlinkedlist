@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 918a347f2e9ace5b291c5f42a84cb3e236ffddc03925eaaab32874586de47921
+-- hash: 22aa9bf91ded6fbf6a1cdc91f9173e2935756b2b765faeef2fa7af3050fc87bd
 
 name:           fastlinkedlist
 version:        0.1.0.0
@@ -23,11 +23,10 @@ library
       Data.OffHeapVector
       Data.FastStack
       Data.ArrayLinkedList.DLList
+      Data.ArrayLinkedList.DLList.IteratorDirection
       Data.ArrayLinkedList.DLList.Ix
       Data.ArrayLinkedList.DLList.Mutable
   other-modules:
-      Data.ArrayLinkedList.DLList.IteratorDirection
-      Data.OffHeapVector.Mutable
       Paths_fastlinkedlist
   hs-source-dirs:
       lib

@@ -8,12 +8,14 @@
 module Data.ArrayLinkedList.DLList
   (
     DLList,
+    DLListIterator,
     Iterator,
     RIterator,
     unsafeFreeze,
     unsafeThaw,
     unsafeNewItr,
     unsafeNewRItr,
+    direction,
     thisIx,
     thisList,
     element,
@@ -90,11 +92,14 @@ class (Default a,
   toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
 
-  thisIx :: i j d a -> CellIndex
-  thisIx = MDL.thisIx . toMutableItr
+  direction :: i j d a -> Direction
+  direction = MDL.direction . toMutableItr
 
   thisList :: i j d a -> DLList a
   thisList = DLList . MDL.thisList . toMutableItr
+
+  thisIx :: i j d a -> CellIndex
+  thisIx = MDL.thisIx . toMutableItr
 
   unsafeElement :: i j d a -> a
   unsafeElement = unsafeDupablePerformIO . MDL.unsafeRead . toMutableItr

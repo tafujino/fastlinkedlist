@@ -20,6 +20,7 @@ module Data.ArrayLinkedList.DLList.Mutable
     rBeginItr,
     endItr,
     rEndItr,
+    direction,
     thisIx,
     thisList,
     unsafePrevItr,
