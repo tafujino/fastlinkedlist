@@ -13,6 +13,8 @@ module Data.ArrayLinkedList.DLList
     RIterator,
     unsafeFreeze,
     unsafeThaw,
+    unsafeFreezeItr,
+    unsafeThawItr,
     unsafeNewItr,
     unsafeNewRItr,
     direction,
@@ -89,8 +91,14 @@ class (Default a,
        CStorable a,
        MDL.MDLListIterator (j :: Direction -> * -> *)  (d :: Direction) a
       ) => DLListIterator i j d a where
-  toMutableItr   :: i j d a -> j d a
   toImmutableItr :: j d a -> i j d a
+  toMutableItr   :: i j d a -> j d a
+
+  unsafeFreezeItr :: j d a -> IO (i j d a)
+  unsafeFreezeItr = return . toImmutableItr
+
+  unsafeThawItr :: i j d a -> IO (j d a)
+  unsafeThawItr = return . toMutableItr
 
   direction :: i j d a -> Direction
   direction = MDL.direction . toMutableItr
