@@ -252,33 +252,23 @@ class (Default a, CStorable a, Show a) => MDLListIterator i (d :: Direction) a w
   {-# INLINE insert #-}  
   insert :: i d a -> a -> IO (i d a)
   insert itr e = do
-    print "+++"
+    putStrLn "*** insert start ***"
     print e
-    print $ setCellValue e def
---    print $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     let list = thisList itr
         vec  = listVector list
         dir  = direction itr
     ix0 <- prevIx itr
     let ix1 = thisIx itr
     print ix0
-    print $ Cell { leftIx = 0, rightIx = 0, cellValue = e }
-    print $ Cell { leftIx = 0, rightIx = 1, cellValue = e }
-    print $ Cell { leftIx = ix0, rightIx = 1, cellValue = e }    
---    print a
---    print $ cellValue a
-    print $ Cell { leftIx = ix1, rightIx = ix0, cellValue = e }     
+    putStrLn $ if ix0 == 0 then "zero" else "non-zero"
+    print Cell { leftIx = 0,   rightIx = 0, cellValue = e }
+    print Cell { leftIx = ix0, rightIx = 0, cellValue = e }
     ix <- newIx list
     OV.unsafeModify vec (setNextCellIx dir ix) ix0
     OV.unsafeModify vec (setPrevCellIx dir ix) ix1
-    print $ Cell { leftIx = 0, rightIx = 0, cellValue = e }
-    print $ Cell { leftIx = ix0, rightIx = ix1, cellValue = e }
-    print $ Cell { leftIx = ix1, rightIx = ix0, cellValue = e }     
-    print $ setNextCellIx dir ix1 $ setCellValue e def     
-    print $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     OV.unsafeWrite vec ix $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     print =<< OV.unsafeRead vec ix
-    print "---"    
+    putStrLn "*** insert end ***"    
     return $ setIx ix itr
 
   -- | Delete a cell pointed by the iterator, push the cell index to the stack, and
