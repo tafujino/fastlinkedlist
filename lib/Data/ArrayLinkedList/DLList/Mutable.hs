@@ -28,6 +28,7 @@ module Data.ArrayLinkedList.DLList.Mutable
     nextItr,
     unsafeRead,
     read,
+    write,
     unsafeWrite,
     modify,
     unsafeModify,
@@ -186,7 +187,7 @@ type MRIterator a = MutableIterator Reverse a
 
 --------------------------------------------------------------------------------
 
-class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
+class (Default a, CStorable a, Show a) => MDLListIterator i (d :: Direction) a where
   -- | primitive operations whose definition depend on the iteration direction
   direction :: i d a -> Direction
   thisList  :: i d a -> MDLList a
@@ -200,6 +201,7 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
     guard $ thisIx itr /= sentinelIx
     lift $ f itr
 
+  {-# INLINE itrCell #-}  
   itrCell :: i d a -> IO (Cell a)
   itrCell itr = OV.unsafeRead (listVector $ thisList itr) $ thisIx itr
 
@@ -215,9 +217,11 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
   nextItr :: i d a -> IO (Maybe (i d a))
   nextItr = ifValidItr return <=< unsafeNextItr
 
+  {-# INLINE unsafeRead #-}  
   unsafeRead :: i d a -> IO a
   unsafeRead itr = cellValue <$> itrCell itr
 
+  {-# INLINE read #-}  
   read :: i d a -> IO a
   read itr = do
     when (thisIx itr == sentinelIx) $ error "cannot read the sentinel cell"
@@ -245,17 +249,36 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 
   -- | Insert an element just before where the iterator points
   --   and retun the iterator to the inserted cell
+  {-# INLINE insert #-}  
   insert :: i d a -> a -> IO (i d a)
   insert itr e = do
+    print "+++"
+    print e
+    print $ setCellValue e def
+--    print $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     let list = thisList itr
         vec  = listVector list
         dir  = direction itr
     ix0 <- prevIx itr
     let ix1 = thisIx itr
+    print ix0
+    print $ Cell { leftIx = 0, rightIx = 0, cellValue = e }
+    print $ Cell { leftIx = 0, rightIx = 1, cellValue = e }
+    print $ Cell { leftIx = ix0, rightIx = 1, cellValue = e }    
+--    print a
+--    print $ cellValue a
+    print $ Cell { leftIx = ix1, rightIx = ix0, cellValue = e }     
     ix <- newIx list
     OV.unsafeModify vec (setNextCellIx dir ix) ix0
     OV.unsafeModify vec (setPrevCellIx dir ix) ix1
+    print $ Cell { leftIx = 0, rightIx = 0, cellValue = e }
+    print $ Cell { leftIx = ix0, rightIx = ix1, cellValue = e }
+    print $ Cell { leftIx = ix1, rightIx = ix0, cellValue = e }     
+    print $ setNextCellIx dir ix1 $ setCellValue e def     
+    print $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
     OV.unsafeWrite vec ix $ setPrevCellIx dir ix0 $ setNextCellIx dir ix1 $ setCellValue e def
+    print =<< OV.unsafeRead vec ix
+    print "---"    
     return $ setIx ix itr
 
   -- | Delete a cell pointed by the iterator, push the cell index to the stack, and
@@ -283,13 +306,14 @@ class (Default a, CStorable a) => MDLListIterator i (d :: Direction) a where
 
 --------------------------------------------------------------------------------
 
-instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a where
+instance (Default a, CStorable a, Show a) => MDLListIterator MutableIterator Forward a where
   direction :: MIterator a -> Direction
   direction _ = Forward
 
   thisList :: MIterator a -> MDLList a
   thisList = itrList
 
+  {-# inline prevIx #-}
   prevIx :: MIterator a -> IO CellIndex
   prevIx = fmap leftIx . itrCell
 
@@ -302,7 +326,7 @@ instance (Default a, CStorable a) => MDLListIterator MutableIterator Forward a w
   setIx :: CellIndex -> MIterator a -> MIterator a
   setIx ix itr = itr { itrIx = ix }
 
-instance (Default a, CStorable a) => MDLListIterator MutableIterator Reverse a where
+instance (Default a, CStorable a, Show a) => MDLListIterator MutableIterator Reverse a where
   direction :: MutableIterator Reverse a -> Direction
   direction _ = Reverse
 
@@ -365,28 +389,30 @@ endItr list = MutableIterator { itrList = list, itrIx = sentinelIx }
 rEndItr :: (Default a, CStorable a) => MDLList a -> MutableIterator Reverse a
 rEndItr list = MutableIterator { itrList = list, itrIx = sentinelIx }
 
+{-# inline setPrevCellIx #-}
 setPrevCellIx :: (Default a, CStorable a) => Direction -> CellIndex -> Cell a -> Cell a
 setPrevCellIx Forward ix cell = cell { leftIx  = ix }
 setPrevCellIx Reverse ix cell = cell { rightIx = ix }
 
+{-# inline setNextCellIx #-}
 setNextCellIx :: (Default a, CStorable a) => Direction -> CellIndex -> Cell a -> Cell a
 setNextCellIx Forward ix cell = cell { rightIx = ix }
 setNextCellIx Reverse ix cell = cell { leftIx  = ix }
 
-pushFront :: (Default a, CStorable a) => MDLList a -> a -> IO ()
+pushFront :: (Default a, CStorable a, Show a) => MDLList a -> a -> IO ()
 pushFront list e = void $ flip insert e =<< beginItr list
 
-pushBack :: (Default a, CStorable a) => MDLList a -> a -> IO ()
+pushBack :: (Default a, CStorable a, Show a) => MDLList a -> a -> IO ()
 pushBack list e = void $ flip insert e =<< rBeginItr list
 
-unsafePopFront :: (Default a, CStorable a) => MDLList a -> IO a
+unsafePopFront :: (Default a, CStorable a, Show a) => MDLList a -> IO a
 unsafePopFront = unsafePop <=< beginItr
 
-popFront :: (Default a, CStorable a) => MDLList a -> IO (Maybe a)
+popFront :: (Default a, CStorable a, Show a) => MDLList a -> IO (Maybe a)
 popFront = ifValidItr unsafePop <=< beginItr
 
-unsafePopBack :: (Default a, CStorable a) => MDLList a -> IO a
+unsafePopBack :: (Default a, CStorable a, Show a) => MDLList a -> IO a
 unsafePopBack = unsafePop <=< rBeginItr
 
-popBack :: (Default a, CStorable a) => MDLList a -> IO (Maybe a)
+popBack :: (Default a, CStorable a, Show a) => MDLList a -> IO (Maybe a)
 popBack = ifValidItr unsafePop <=< rBeginItr

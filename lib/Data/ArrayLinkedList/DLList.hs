@@ -130,7 +130,7 @@ class (Default a,
 
 --------------------------------------------------------------------------------
 
-instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Forward a where
+instance (Default a, CStorable a, Show a) => DLListIterator ImmutableIterator MDL.MutableIterator Forward a where
   toMutableItr :: Iterator a -> MDL.MIterator a
   toMutableItr (ImmutableIterator mitr) = mitr
 
@@ -138,7 +138,7 @@ instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.Mutabl
   toImmutableItr = ImmutableIterator
 
 
-instance (Default a, CStorable a) => DLListIterator ImmutableIterator MDL.MutableIterator Reverse a where
+instance (Default a, CStorable a, Show a) => DLListIterator ImmutableIterator MDL.MutableIterator Reverse a where
   toMutableItr :: RIterator a -> MDL.MRIterator a
   toMutableItr (ImmutableIterator mitr) = mitr
 
@@ -170,43 +170,43 @@ rEndItr = ImmutableIterator . MDL.rEndItr . toMutableList
 
 -- to do: generate foldr and foldl from foldMap
 
-foldlMItr :: (Default a, CStorable a, Monad m) => (b -> Iterator a -> m b) -> b -> Iterator a -> m b
+foldlMItr :: (Default a, CStorable a, Monad m, Show a) => (b -> Iterator a -> m b) -> b -> Iterator a -> m b
 foldlMItr f z itr = maybe return (flip $ foldlMItr f) (nextItr itr) =<< f z itr
 
-foldlM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
+foldlM :: (Default a, CStorable a, Monad m, Show a) => (b -> a -> m b) -> b -> DLList a -> m b
 foldlM f z l = foldlMItr (\x -> f x . unsafeElement) z $ beginItr l
 
-foldM :: (Default a, CStorable a, Monad m) => (b -> a -> m b) -> b -> DLList a -> m b
+foldM :: (Default a, CStorable a, Monad m, Show a) => (b -> a -> m b) -> b -> DLList a -> m b
 foldM = foldlM
 
-foldrMItr :: (Default a, CStorable a, Monad m) => (RIterator a -> b -> m b) -> b -> RIterator a -> m b
+foldrMItr :: (Default a, CStorable a, Monad m, Show a) => (RIterator a -> b -> m b) -> b -> RIterator a -> m b
 foldrMItr f z itr = maybe return (flip $ foldrMItr f) (nextItr itr) =<< f itr z
 
-foldrM :: (Default a, CStorable a, Monad m) => (a -> b -> m b) -> b -> DLList a -> m b
+foldrM :: (Default a, CStorable a, Monad m, Show a) => (a -> b -> m b) -> b -> DLList a -> m b
 foldrM f z l = foldrMItr (f . unsafeElement) z $ rBeginItr l
 
-foldl :: (Default a, CStorable a) => (b -> a -> b) -> b -> DLList a -> b
+foldl :: (Default a, CStorable a, Show a) => (b -> a -> b) -> b -> DLList a -> b
 foldl f z l = runIdentity $ foldlM ((return . ) . f) z l
 
-foldr :: (Default a, CStorable a) => (a -> b -> b) -> b -> DLList a -> b
+foldr :: (Default a, CStorable a, Show a) => (a -> b -> b) -> b -> DLList a -> b
 foldr f z l = runIdentity $ foldrM ((return . ) . f) z l
 
-foldlItr :: (Default a, CStorable a) => (b -> Iterator a -> b) -> b -> Iterator a -> b
+foldlItr :: (Default a, CStorable a, Show a) => (b -> Iterator a -> b) -> b -> Iterator a -> b
 foldlItr f z itr = runIdentity $ foldlMItr ((return . ) . f) z itr
 
-foldrItr :: (Default a, CStorable a) => (RIterator a -> b -> b) -> b -> RIterator a -> b
+foldrItr :: (Default a, CStorable a, Show a) => (RIterator a -> b -> b) -> b -> RIterator a -> b
 foldrItr f z itr = runIdentity $ foldrMItr ((return . ) . f) z itr
 
-mapM_ :: (Default a, CStorable a, Monad m) => (a -> m b) -> DLList a -> m ()
+mapM_ :: (Default a, CStorable a, Monad m, Show a) => (a -> m b) -> DLList a -> m ()
 mapM_ f = foldM (const $ void . f) ()
 
-forM_ :: (Default a, CStorable a, Monad m) => DLList a -> (a -> m b) -> m ()
+forM_ :: (Default a, CStorable a, Monad m, Show a) => DLList a -> (a -> m b) -> m ()
 forM_ = flip mapM_
 
-toList :: (Default a, CStorable a) => DLList a -> [a]
+toList :: (Default a, CStorable a, Show a) => DLList a -> [a]
 toList = foldr (:) []
 
 -- to do: implement fromList
 
-toIxList :: (Default a, CStorable a) => DLList a -> [CellIndex]
+toIxList :: (Default a, CStorable a, Show a) => DLList a -> [CellIndex]
 toIxList = foldrItr ((:) . thisIx) [] . rBeginItr

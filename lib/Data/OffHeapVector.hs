@@ -114,6 +114,7 @@ checkBoundary ov@(OffHeapVector vRef _ sizeRef) ix = do
   size <- readIORef sizeRef
   when (ix < 0 || size <= ix) $ error $ printf "Out of range (%d is out of [0, %d) )" ix size
 
+{-# INLINE unsafeRead #-}
 unsafeRead :: Storable a => OffHeapVector a -> VecIx -> IO a
 unsafeRead (OffHeapVector vRef _ _) ix = do
   v <- readIORef vRef
