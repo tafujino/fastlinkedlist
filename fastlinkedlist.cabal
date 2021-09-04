@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03b755cb8dbde728f5d57f24ea62aeff72e0440072232aa506e0041aaad65b21
+-- hash: 07d41f22cb696d25f4044b64b2c198af7c9e3133740331dac40719c89d7ec89f
 
 name:           fastlinkedlist
 version:        0.1.0.0
@@ -14,7 +16,6 @@ copyright:      2018 Author name here
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 extra-source-files:
     README.md
 
